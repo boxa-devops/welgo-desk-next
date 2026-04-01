@@ -1,0 +1,173 @@
+.sa-root {
+  flex: 1;
+  overflow-y: auto;
+  background: var(--surface);
+  display: flex;
+  justify-content: center;
+  padding: 48px 24px 80px;
+}
+
+.sa-container {
+  width: 100%;
+  max-width: 680px;
+}
+
+.sa-header {
+  margin-bottom: 28px;
+}
+
+.sa-title {
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--text);
+  letter-spacing: -0.4px;
+  margin: 0 0 4px;
+}
+
+.sa-sub {
+  font-size: 13px;
+  color: var(--muted);
+  margin: 0;
+}
+
+.sa-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+}
+
+.sa-loading,
+.sa-empty {
+  padding: 48px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+/* ── List ── */
+
+.sa-list {
+  overflow: hidden;
+}
+
+.sa-entry {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+  transition: background 0.1s;
+}
+
+.sa-entry:last-child {
+  border-bottom: none;
+}
+
+.sa-entry--pending {
+  background: #fffbeb;
+}
+
+.sa-entry-left {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.sa-entry-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.sa-entry-meta {
+  font-size: 12px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sa-entry-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+/* ── Plan select ── */
+
+.sa-select {
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  outline: none;
+}
+
+.sa-select:focus {
+  border-color: var(--brand);
+}
+
+.sa-select--saving {
+  opacity: 0.6;
+}
+
+/* ── Enable toggle ── */
+
+.sa-toggle {
+  height: 34px;
+  padding: 0 14px;
+  border: none;
+  border-radius: var(--radius);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: opacity 0.15s;
+  white-space: nowrap;
+}
+
+.sa-toggle:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.sa-toggle--on {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.sa-toggle--on:hover:not(:disabled) {
+  background: #a7f3d0;
+}
+
+.sa-toggle--off {
+  background: #fef9c3;
+  color: #854d0e;
+}
+
+.sa-toggle--off:hover:not(:disabled) {
+  background: #fde68a;
+}
+
+/* ── Forbidden ── */
+
+.sa-forbidden {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding-top: 120px;
+  color: var(--muted);
+}
+
+.sa-forbidden-icon {
+  font-size: 40px;
+}

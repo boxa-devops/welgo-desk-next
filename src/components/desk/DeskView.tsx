@@ -14,7 +14,7 @@ import "./DeskView.css";
 import ReactMarkdown from "react-markdown";
 import { usePostHog } from "@/lib/posthog";
 
-function getDestinations(t) {
+function getDestinations(t): Array<{ key: string; label: any; emoji: string; hot?: boolean }> {
   return [
     { key: "russia", label: t("dest.russia"), emoji: "🇷🇺" },
     { key: "turkey", label: t("dest.turkey"), emoji: "🇹🇷" },

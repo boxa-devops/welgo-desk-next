@@ -608,7 +608,13 @@ function PreviewResult({ message, onHide, onAnalyze = null, sessionId }) {
   const hasMore = hotels.length < total;
 
   useEffect(() => {
-    if (message.previewHotels?.length) setHotels(message.previewHotels);
+    if (!message.previewHotels?.length) return;
+    setHotels((prev) => {
+      const existingIds = new Set(prev.map((h) => h.hotel_id));
+      const newOnes = message.previewHotels.filter((h) => !existingIds.has(h.hotel_id));
+      if (!newOnes.length) return prev; // nothing to add
+      return [...prev, ...newOnes];
+    });
   }, [message.previewHotels]);
 
   const loadMore = async () => {

@@ -356,6 +356,31 @@ function buildQuote(hotels, t) {
   return lines.join("\n");
 }
 
+function PreviewResult({ message, onHide, onAnalyze = null }) {
+  const hotels = message.previewHotels ?? [];
+  const annotations = message.hotel_annotations ?? [];
+  const annMap = {};
+  for (const a of annotations) { if (a.hotel_name) annMap[a.hotel_name] = a; }
+  if (!hotels.length) return null;
+  const isFinal = message.previewFinal;
+  const isSearching = !isFinal;
+  return (
+    <div className="desk-result-block">
+      <div className="desk-hotel-carousel">
+        {hotels.map((h) => (
+          <DeskHotelCard key={h.hotel_id} hotel={h} onHide={(name) => onHide(name)} selected={false} onSelect={() => {}} annotation={annMap[h.hotel_name] ?? null} loading={isSearching} />
+        ))}
+      </div>
+      {isFinal && onAnalyze && (
+        <button className="desk-analyze-btn" onClick={onAnalyze}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01z"/></svg>
+          Анализировать
+        </button>
+      )}
+    </div>
+  );
+}
+
 function StructuredResult({ message, sessionId, onHide, onShowAll }) {
   const { t } = useI18n();
   const TIER_META = getTierMeta(t);
@@ -524,7 +549,7 @@ export default function DeskView({ sessionId, onTurnComplete }) {
     setMessages((prev) => [
       ...prev.filter((m) => m.type !== "welcome"),
       ...(isExclusion ? [] : [{ id: userId, type: "user", text: rawText }]),
-      { id: aiId, type: "desk-ai", state: "thinking", userText: rawText, statusText: "", progress: 0, hotelsFound: 0, hotelNames: [], thought: null, streamingAnalysis: "", structured: null, hotel_annotations: [], plain_text: null, clarify: null, alternatives: null, filteredHotels: null, filterState: EMPTY_FILTER, filterLoading: false, error: null },
+      { id: aiId, type: "desk-ai", state: "thinking", userText: rawText, statusText: "", progress: 0, hotelsFound: 0, hotelNames: [], thought: null, streamingAnalysis: "", structured: null, hotel_annotations: [], previewHotels: null, previewFinal: false, previewFilters: null, previewQuickActions: null, previewClientQuote: null, plain_text: null, clarify: null, alternatives: null, filteredHotels: null, filterState: EMPTY_FILTER, filterLoading: false, error: null },
     ]);
     setIsThinking(true);
     try {
@@ -564,8 +589,13 @@ export default function DeskView({ sessionId, onTurnComplete }) {
           if (chunk.type === "done") return;
           if (chunk.type === "thought") { updateMessage(aiId, { thought: { intent_summary: chunk.intent_summary, travel_profile: chunk.travel_profile, confidence: chunk.confidence, missing_info: chunk.missing_info ?? [], tool_plan: chunk.tool_plan ?? [], search_hints: chunk.search_hints ?? "" } }); }
           if (chunk.type === "status") { updateMessage(aiId, { state: "thinking", statusText: chunk.text }); }
-          if (chunk.type === "progress") { updateMessage(aiId, { state: "thinking", statusText: chunk.text, progress: chunk.progress ?? 0, hotelsFound: chunk.hotels_found ?? 0, hotelNames: chunk.hotel_names ?? [] }); }
+          if (chunk.type === "progress") { setMessages((prev) => prev.map((m) => m.id === aiId ? { ...m, state: m.state === "previewing" ? "previewing" : "thinking", statusText: chunk.text, progress: chunk.progress ?? 0, hotelsFound: chunk.hotels_found ?? 0, hotelNames: chunk.hotel_names ?? [] } : m)); }
+          if (chunk.type === "hotel_preview") { updateMessage(aiId, { state: "previewing", previewHotels: chunk.hotels, previewFinal: !!chunk.final }); }
+          if (chunk.type === "filters") { updateMessage(aiId, { previewFilters: chunk.available_filters }); }
           if (chunk.type === "analysis_stream") { setMessages((prev) => prev.map((m) => m.id === aiId ? { ...m, state: "analyzing", streamingAnalysis: (m.streamingAnalysis || "") + chunk.text } : m)); }
+          if (chunk.type === "hotel_annotate") { setMessages((prev) => prev.map((m) => m.id === aiId ? { ...m, hotel_annotations: [...(m.hotel_annotations || []), chunk] } : m)); }
+          if (chunk.type === "quick_actions") { updateMessage(aiId, { previewQuickActions: chunk.actions }); }
+          if (chunk.type === "client_quote") { updateMessage(aiId, { previewClientQuote: chunk.text }); }
           if (chunk.type === "result") { updateMessage(aiId, { state: "done", structured: chunk.structured, hotel_annotations: chunk.hotel_annotations ?? [] }); }
           if (chunk.type === "clarify") { updateMessage(aiId, { state: "clarify", clarify: chunk }); }
           if (chunk.type === "alternatives") { updateMessage(aiId, { state: "alternatives", alternatives: chunk }); }
@@ -681,7 +711,7 @@ export default function DeskView({ sessionId, onTurnComplete }) {
             }
             return (<div key={m.id}>{m.thought && <ThoughtBubble thought={m.thought} />}<ThinkingBubble statusText={m.statusText} progress={m.progress} hotelsFound={m.hotelsFound} hotelNames={m.hotelNames} /></div>);
           }
-          if (m.state === "analyzing") return (<div key={m.id}>{m.thought && <ThoughtBubble thought={m.thought} />}<StreamingAnalysis text={m.streamingAnalysis} /></div>);
+          if (m.state === "previewing" || m.state === "analyzing") return (<div key={m.id}>{m.thought && <ThoughtBubble thought={m.thought} />}{m.state === "previewing" && !m.previewFinal && <ThinkingBubble statusText={m.statusText} progress={m.progress} hotelsFound={m.hotelsFound} hotelNames={m.hotelNames} />}{m.previewHotels && (<div className="desk-result-wrap"><div className="desk-avatar" aria-label="Welgo Desk AI">D</div><PreviewResult message={m} onHide={handleHide} onAnalyze={m.previewFinal ? () => handleSend("Анализировать", [{ action: "analyze" }]) : null} /></div>)}{m.streamingAnalysis && <StreamingAnalysis text={m.streamingAnalysis} />}</div>);
           if (m.state === "clarify") return (<div key={m.id}>{m.thought && <ThoughtBubble thought={m.thought} />}<ClarifyBubble message={m} onSearch={handleSend} /></div>);
           if (m.state === "alternatives") return (<div key={m.id}>{m.thought && <ThoughtBubble thought={m.thought} />}<AlternativesBubble message={m} onSearch={handleSend} /></div>);
           if (m.state === "error") return (<div key={m.id} className="desk-error" role="alert">{"\u041E\u0448\u0438\u0431\u043A\u0430: "}{m.error}</div>);

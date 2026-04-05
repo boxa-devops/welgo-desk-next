@@ -465,6 +465,57 @@
   gap: 12px;
 }
 
+/* Hotel cards carousel (horizontal scroll) */
+.desk-hotel-carousel {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 8px;
+}
+
+.desk-hotel-carousel > * {
+  flex: 0 0 260px;
+  scroll-snap-align: start;
+}
+
+.desk-hotel-carousel::-webkit-scrollbar {
+  height: 4px;
+}
+
+.desk-hotel-carousel::-webkit-scrollbar-thumb {
+  background: var(--border, #d0d5dd);
+  border-radius: 4px;
+}
+
+/* Analyze CTA button */
+.desk-analyze-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  margin-top: 12px;
+  padding: 12px 20px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #fff;
+  background: var(--brand, #6366f1);
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.1s;
+}
+
+.desk-analyze-btn:hover {
+  background: var(--brand-dark, #4f46e5);
+}
+
+.desk-analyze-btn:active {
+  transform: scale(0.98);
+}
+
 .desk-no-results {
   font-size: 13px;
   color: var(--muted);

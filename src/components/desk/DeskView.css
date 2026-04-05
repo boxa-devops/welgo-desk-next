@@ -238,8 +238,17 @@
   color: var(--text);
   line-height: 1.6;
   max-width: 72%;
-  white-space: pre-wrap;
 }
+
+/* Markdown rendering inside AI bubbles */
+.desk-markdown p { margin: 0 0 8px; }
+.desk-markdown p:last-child { margin-bottom: 0; }
+.desk-markdown strong { font-weight: 600; }
+.desk-markdown table { border-collapse: collapse; width: 100%; margin: 8px 0; font-size: 13px; }
+.desk-markdown th, .desk-markdown td { border: 1px solid var(--border); padding: 5px 10px; text-align: left; }
+.desk-markdown th { background: var(--muted, rgba(0,0,0,0.04)); font-weight: 600; }
+.desk-markdown ul, .desk-markdown ol { padding-left: 20px; margin: 4px 0 8px; }
+.desk-markdown li { margin: 2px 0; }
 
 /* ── Thinking indicator ── */
 .desk-thinking {

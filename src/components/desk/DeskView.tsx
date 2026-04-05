@@ -11,6 +11,7 @@ import TourPromptBuilder from "./TourPromptBuilder";
 import { apiFetch } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
 import "./DeskView.css";
+import ReactMarkdown from "react-markdown";
 import { usePostHog } from "@/lib/posthog";
 
 function getDestinations(t) {
@@ -436,7 +437,7 @@ function PlainBubble({ text }) {
   return (
     <div className="desk-ai-plain">
       <div className="desk-avatar" aria-label="Welgo Desk AI">D</div>
-      <div className="desk-plain-bubble">{text}</div>
+      <div className="desk-plain-bubble desk-markdown"><ReactMarkdown>{text}</ReactMarkdown></div>
     </div>
   );
 }
@@ -536,8 +537,9 @@ function StreamingAnalysis({ text }) {
   return (
     <div className="desk-ai-plain">
       <div className="desk-avatar">D</div>
-      <div className="desk-streaming-bubble">
-        <pre className="desk-streaming-text">{text}<span className="desk-streaming-cursor" aria-hidden="true" /></pre>
+      <div className="desk-streaming-bubble desk-markdown">
+        <ReactMarkdown>{text}</ReactMarkdown>
+        <span className="desk-streaming-cursor" aria-hidden="true" />
       </div>
     </div>
   );

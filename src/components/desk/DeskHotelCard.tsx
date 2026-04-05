@@ -12,7 +12,6 @@ const TIER_LABELS = {
   budget: "Цена",
   luxury: "Рейтинг",
   beach: "Море",
-  risky: "Риск",
 };
 
 const HideIcon = () => (

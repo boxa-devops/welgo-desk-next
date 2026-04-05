@@ -3,6 +3,7 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import DeskHotelCard from "./DeskHotelCard";
+import PreviewCard from "./PreviewCard";
 import DeskAnalysisPanel, { splitAnalysis } from "./DeskAnalysisPanel";
 import DeskQuoteBox from "./DeskQuoteBox";
 import DeskAllHotelsModal from "./DeskAllHotelsModal";
@@ -12,8 +13,114 @@ import { useI18n } from "@/lib/i18n";
 import "./DeskView.css";
 import { usePostHog } from "@/lib/posthog";
 
-function getDeskChips(t) {
-  return [t("desk.chip1"), t("desk.chip2"), t("desk.chip3"), t("desk.chip4")];
+function getDestinations(t) {
+  return [
+    { key: "kyrgyzstan", label: t("dest.kyrgyzstan"), emoji: "🇰🇬", hot: true },
+    { key: "tajikistan", label: t("dest.tajikistan"), emoji: "🇹🇯", hot: true },
+    { key: "kazakhstan", label: t("dest.kazakhstan"), emoji: "🇰🇿", hot: true },
+    { key: "saudi", label: t("dest.saudi"), emoji: "🇸🇦", hot: true },
+    { key: "russia", label: t("dest.russia"), emoji: "🇷🇺" },
+    { key: "turkey", label: t("dest.turkey"), emoji: "🇹🇷" },
+    { key: "uae", label: t("dest.uae"), emoji: "🇦🇪" },
+    { key: "thailand", label: t("dest.thailand"), emoji: "🇹🇭" },
+    { key: "maldives", label: t("dest.maldives"), emoji: "🏝️" },
+    { key: "egypt", label: t("dest.egypt"), emoji: "🇪🇬" },
+    { key: "srilanka", label: t("dest.srilanka"), emoji: "🇱🇰" },
+    { key: "georgia", label: t("dest.georgia"), emoji: "🇬🇪" },
+    { key: "vietnam", label: t("dest.vietnam"), emoji: "🇻🇳" },
+    { key: "bali", label: t("dest.bali"), emoji: "🌴" },
+    { key: "cuba", label: t("dest.cuba"), emoji: "🇨🇺" },
+  ];
+}
+
+function WelcomeChips({ t, onFillInput, posthog }: { t: any; onFillInput: (msg: string) => void; posthog: any }) {
+  const [dest, setDest] = useState<string | null>(null);
+  const [from, setFrom] = useState(t("wc.f1"));
+  const [guests, setGuests] = useState(t("wc.g1"));
+  const [budget, setBudget] = useState<string | null>(null);
+  const [nights, setNights] = useState(t("wc.n2"));
+
+  const fromOpts = [t("wc.f1"), t("wc.f2")];
+  const guestOpts = [t("wc.g1"), t("wc.g2"), t("wc.g3"), t("wc.g4"), t("wc.g5")];
+  const budgetOpts = [t("wc.b1"), t("wc.b2"), t("wc.b3"), t("wc.b4")];
+  const nightsOpts = [t("wc.n1"), t("wc.n2"), t("wc.n3"), t("wc.n4")];
+
+  const buildMsg = (d: string | null, f: string, g: string, b: string | null, n: string) => {
+    if (!d) return "";
+    const parts = [d, n, g, t("wc.from_prefix") + " " + f];
+    if (b) parts.push(b);
+    return parts.join(", ");
+  };
+
+  const fill = (d: string | null, f: string, g: string, b: string | null, n: string) => {
+    const msg = buildMsg(d, f, g, b, n);
+    if (msg) onFillInput(msg);
+  };
+
+  const handleDest = (d: { key: string; label: string }) => {
+    const newDest = dest === d.label ? null : d.label;
+    setDest(newDest);
+    posthog.capture("suggestion_chip_clicked", { destination: d.key, guests, budget, nights, from });
+    fill(newDest, from, guests, budget, nights);
+  };
+
+  const handleFrom = (f: string) => { setFrom(f); fill(dest, f, guests, budget, nights); };
+  const handleGuests = (g: string) => { setGuests(g); fill(dest, from, g, budget, nights); };
+  const handleBudget = (b: string) => { const nb = budget === b ? null : b; setBudget(nb); fill(dest, from, guests, nb, nights); };
+  const handleNights = (n: string) => { setNights(n); fill(dest, from, guests, budget, n); };
+
+  const destinations = getDestinations(t);
+
+  return (
+    <div className="desk-welcome-builder">
+      <div>
+        <span className="desk-wb-label">{t("wc.where")}</span>
+        <div className="desk-wb-destinations">
+          {destinations.map((d) => (
+            <button key={d.key} className={`desk-wb-dest${dest === d.label ? " active" : ""}${d.hot ? " hot" : ""}`} onClick={() => handleDest(d)}>
+              <span className="desk-wb-dest-emoji">{d.emoji}</span>
+              <span>{d.label}</span>
+              {d.hot && <span className="desk-wb-dest-hot">🔥</span>}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="desk-wb-params">
+        <div className="desk-wb-param-group">
+          <span className="desk-wb-param-label">{t("wc.from")}</span>
+          <div className="desk-wb-param-chips">
+            {fromOpts.map((f) => (
+              <button key={f} className={`desk-wb-chip${from === f ? " active" : ""}`} onClick={() => handleFrom(f)}>{f}</button>
+            ))}
+          </div>
+        </div>
+        <div className="desk-wb-param-group">
+          <span className="desk-wb-param-label">{t("wc.guests")}</span>
+          <div className="desk-wb-param-chips">
+            {guestOpts.map((g) => (
+              <button key={g} className={`desk-wb-chip${guests === g ? " active" : ""}`} onClick={() => handleGuests(g)}>{g}</button>
+            ))}
+          </div>
+        </div>
+        <div className="desk-wb-param-group">
+          <span className="desk-wb-param-label">{t("wc.budget")}</span>
+          <div className="desk-wb-param-chips">
+            {budgetOpts.map((b) => (
+              <button key={b} className={`desk-wb-chip${budget === b ? " active" : ""}`} onClick={() => handleBudget(b)}>{b}</button>
+            ))}
+          </div>
+        </div>
+        <div className="desk-wb-param-group">
+          <span className="desk-wb-param-label">{t("wc.nights")}</span>
+          <div className="desk-wb-param-chips">
+            {nightsOpts.map((n) => (
+              <button key={n} className={`desk-wb-chip${nights === n ? " active" : ""}`} onClick={() => handleNights(n)}>{n}</button>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 const SendIcon = () => (
@@ -119,10 +226,122 @@ function ClarifyBubble({ message, onSearch }) {
   );
 }
 
+function DatePicker({ onPick }: { onPick: (val: string) => void }) {
+  const { t } = useI18n();
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+  const handleApply = () => {
+    if (from) onPick(to ? `${t("picker.from")} ${from} ${t("picker.to")} ${to}` : `${t("picker.from")} ${from}`);
+  };
+  return (
+    <div className="desk-alt-picker">
+      <div className="desk-alt-picker-row">
+        <label className="desk-alt-picker-label">{t("picker.from")}</label>
+        <input type="date" className="desk-alt-picker-input" value={from} onChange={(e) => setFrom(e.target.value)} />
+      </div>
+      <div className="desk-alt-picker-row">
+        <label className="desk-alt-picker-label">{t("picker.to")}</label>
+        <input type="date" className="desk-alt-picker-input" value={to} onChange={(e) => setTo(e.target.value)} />
+      </div>
+      <button className="desk-alt-picker-apply" disabled={!from} onClick={handleApply}>{t("picker.apply")} →</button>
+    </div>
+  );
+}
+
+function DestinationPicker({ onPick }: { onPick: (val: string) => void }) {
+  const { t } = useI18n();
+  const [custom, setCustom] = useState("");
+  const destinations = getDestinations(t);
+  return (
+    <div className="desk-alt-picker">
+      <div className="desk-alt-picker-dests">
+        {destinations.map((d) => (
+          <button key={d.key} className={`desk-wb-dest${d.hot ? " hot" : ""}`} onClick={() => onPick(d.label)}>
+            <span className="desk-wb-dest-emoji">{d.emoji}</span>
+            <span>{d.label}</span>
+            {d.hot && <span className="desk-wb-dest-hot">🔥</span>}
+          </button>
+        ))}
+      </div>
+      <div className="desk-alt-picker-custom">
+        <input className="desk-alt-picker-input desk-alt-picker-input--wide" placeholder={t("alt.custom_dest")} value={custom} onChange={(e) => setCustom(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && custom.trim()) onPick(custom.trim()); }} />
+        <button className="desk-alt-picker-apply" disabled={!custom.trim()} onClick={() => onPick(custom.trim())}>→</button>
+      </div>
+    </div>
+  );
+}
+
+function NightsPicker({ onPick }: { onPick: (val: string) => void }) {
+  const { t } = useI18n();
+  const nightsUnit = t("picker.nights_unit");
+  const options = [3, 5, 7, 10, 14, 21];
+  return (
+    <div className="desk-alt-picker">
+      <div className="desk-alt-picker-nights">
+        {options.map((n) => (
+          <button key={n} className="desk-wb-chip" onClick={() => onPick(`${n} ${nightsUnit}`)}>{n} {nightsUnit}</button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function inferActionType(s: any): string {
+  if (s.action_type && s.action_type !== "custom") return s.action_type;
+  const lbl = (s.label || "").toLowerCase();
+  const msg = (s.message || "").toLowerCase();
+  const text = lbl + " " + msg;
+  // Russian + Uzbek + English keywords
+  if (/дат|date|сдвин|расшир|март|апрел|мая|июн|июл|период|sana|muddal|kuni|vaqt|oy/.test(text)) return "dates";
+  if (/направлен|destination|страну|курорт|другое направ|попробовать|yo'nalish|mamlakat|boshqa|davlat|mamlakatni/.test(text)) return "destination";
+  if (/ноч|night|уменьш.*ноч|увелич.*ноч|кол.*ноч|kecha|tunlar|tunash|kun\b/.test(text)) return "nights";
+  return "custom";
+}
+
 function AlternativesBubble({ message, onSearch }) {
   const { alternatives } = message;
   const posthog = usePostHog();
+  const { t } = useI18n();
+  const [openPicker, setOpenPicker] = useState<string | null>(null);
+  const [baseMessage, setBaseMessage] = useState("");
   if (!alternatives) return null;
+
+  const handleSuggestionClick = (s: any, i: number) => {
+    const actionType = inferActionType(s);
+    posthog.capture("alternative_suggestion_clicked", { label: s.label, index: i, action_type: actionType });
+    if (actionType === "dates" || actionType === "destination" || actionType === "nights") {
+      setOpenPicker(openPicker === actionType ? null : actionType);
+      setBaseMessage(s.message);
+    } else {
+      onSearch(s.message);
+    }
+  };
+
+  const originalQuery = message.userText || "";
+
+  const handlePickerResult = (val: string, type: string) => {
+    // Build a completely new standalone query by replacing the relevant part
+    const parts = originalQuery.split(/,\s*/);
+
+    if (type === "destination") {
+      parts[0] = val;
+    } else if (type === "nights") {
+      const nightsIdx = parts.findIndex((p) => /\d+\s*(ноч|kecha|night)/i.test(p));
+      if (nightsIdx >= 0) parts[nightsIdx] = val;
+      else parts.push(val);
+    } else if (type === "dates") {
+      const dateIdx = parts.findIndex((p) => /(с\s+\d|dan\s+\d|from\s+\d|\d{4}-\d{2}-\d{2})/i.test(p));
+      if (dateIdx >= 0) parts[dateIdx] = val;
+      else parts.push(val);
+    }
+
+    const newQuery = parts.join(", ");
+    onSearch(newQuery);
+    setOpenPicker(null);
+  };
+
+  const PICKER_ICONS = { dates: "📅", destination: "🌍", nights: "🌙" };
+
   return (
     <div className="desk-ai-plain">
       <div className="desk-avatar" aria-label="Welgo Desk AI">D</div>
@@ -138,16 +357,27 @@ function AlternativesBubble({ message, onSearch }) {
           </div>
         )}
         <div className="desk-alt-suggestions">
-          <span className="desk-alt-suggestions-label">{"\u0427\u0442\u043E \u043C\u043E\u0436\u043D\u043E \u0441\u0434\u0435\u043B\u0430\u0442\u044C:"}</span>
-          {alternatives.suggestions.map((s, i) => (
-            <button key={i} className="desk-alt-suggestion-btn" onClick={() => { posthog.capture("alternative_suggestion_clicked", { label: s.label, index: i }); onSearch(s.message); }} title={s.why || s.label}>
-              <span className="desk-alt-suggestion-label">{s.label}</span>
-              {s.why && (<span className="desk-alt-suggestion-why">{s.why}</span>)}
-              <span className="desk-alt-suggestion-arrow" aria-hidden="true">{"\u2192"}</span>
-            </button>
-          ))}
+          <span className="desk-alt-suggestions-label">{t("alt.what_to_do")}</span>
+          {alternatives.suggestions.map((s, i) => {
+            const actionType = inferActionType(s);
+            const isPickable = actionType === "dates" || actionType === "destination" || actionType === "nights";
+            const isOpen = openPicker === actionType;
+            return (
+              <div key={i}>
+                <button className={`desk-alt-suggestion-btn${isOpen ? " active" : ""}`} onClick={() => handleSuggestionClick(s, i)} title={s.why || s.label}>
+                  {isPickable && <span className="desk-alt-suggestion-icon">{PICKER_ICONS[actionType]}</span>}
+                  <span className="desk-alt-suggestion-label">{s.label}</span>
+                  {s.why && (<span className="desk-alt-suggestion-why">{s.why}</span>)}
+                  <span className="desk-alt-suggestion-arrow" aria-hidden="true">{isOpen ? "▾" : "→"}</span>
+                </button>
+                {isOpen && actionType === "dates" && <DatePicker onPick={(v) => handlePickerResult(v, "dates")} />}
+                {isOpen && actionType === "destination" && <DestinationPicker onPick={(v) => handlePickerResult(v, "destination")} />}
+                {isOpen && actionType === "nights" && <NightsPicker onPick={(v) => handlePickerResult(v, "nights")} />}
+              </div>
+            );
+          })}
         </div>
-        <p className="desk-alt-hint">{"\u0418\u043B\u0438 \u0432\u0432\u0435\u0434\u0438\u0442\u0435 \u0441\u0432\u043E\u0439 \u0432\u0430\u0440\u0438\u0430\u043D\u0442 \u043F\u043E\u0438\u0441\u043A\u0430 \u0432 \u043F\u043E\u043B\u0435 \u043D\u0438\u0436\u0435"}</p>
+        <p className="desk-alt-hint">{t("alt.hint")}</p>
       </div>
     </div>
   );
@@ -313,7 +543,7 @@ function StreamingAnalysis({ text }) {
   );
 }
 
-const TIER_EMOJI = { value: "\u2B50", budget: "\u{1F4B0}", luxury: "\u{1F3C6}", beach: "\u{1F3D6}\uFE0F", risky: "\u26A0\uFE0F" };
+const TIER_EMOJI = { value: "\u2B50", budget: "\u{1F4B0}", luxury: "\u{1F3C6}", beach: "\u{1F3D6}\uFE0F" };
 
 function getTierMeta(t) {
   return {
@@ -321,11 +551,10 @@ function getTierMeta(t) {
     budget: { label: t("tier.budget"), emoji: "\u{1F4B0}" },
     luxury: { label: t("tier.luxury"), emoji: "\u{1F3C6}" },
     beach: { label: t("tier.beach"), emoji: "\u{1F3D6}\uFE0F" },
-    risky: { label: t("tier.risky"), emoji: "\u26A0\uFE0F" },
   };
 }
 
-const TIER_ORDER = ["value", "budget", "luxury", "beach", "risky"];
+const TIER_ORDER = ["value", "budget", "luxury", "beach"];
 const valueScore = (h) => h.rating * 15 + h.stars * 2 - Math.log(Math.max(h.price_uzs, 1) / 10_000) * 10 + (h.sea_distance_m != null && h.sea_distance_m < 200 ? 5 : 0);
 const TIER_SORT = {
   value: (a, b) => valueScore(b) - valueScore(a),
@@ -337,7 +566,6 @@ const TIER_SORT = {
     if (b.sea_distance_m == null) return -1;
     return a.sea_distance_m - b.sea_distance_m;
   },
-  risky: (a, b) => a.rating - b.rating,
 };
 const TOP_N = 4;
 
@@ -356,49 +584,38 @@ function buildQuote(hotels, t) {
   return lines.join("\n");
 }
 
+const _PREVIEW_GRID_SIZE = 12;
+
+function SkeletonCard({ index }) {
+  return (
+    <div className="pcard-skeleton" style={{ animationDelay: `${index * 60}ms` }}>
+      <div className="pcard-skeleton-inner">
+        <div className="pcard-skeleton-photo" />
+        <div className="pcard-skeleton-body">
+          <div className="pcard-skeleton-line pcard-skeleton-line--wide" />
+          <div className="pcard-skeleton-line pcard-skeleton-line--mid" />
+          <div className="pcard-skeleton-line pcard-skeleton-line--short" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function PreviewResult({ message, onHide, onAnalyze = null, sessionId }) {
-  const scrollRef = useRef(null);
-  const [canScrollLeft, setCanScrollLeft] = useState(false);
-  const [canScrollRight, setCanScrollRight] = useState(false);
   const [hotels, setHotels] = useState(message.previewHotels ?? []);
   const [loadingMore, setLoadingMore] = useState(false);
   const total = message.previewTotal ?? hotels.length;
   const hasMore = hotels.length < total;
 
-  // Sync initial hotels from message
   useEffect(() => {
     if (message.previewHotels?.length) setHotels(message.previewHotels);
   }, [message.previewHotels]);
-
-  const updateScrollState = useCallback(() => {
-    const el = scrollRef.current;
-    if (!el) return;
-    setCanScrollLeft(el.scrollLeft > 8);
-    setCanScrollRight(el.scrollLeft < el.scrollWidth - el.clientWidth - 8);
-  }, []);
-
-  useEffect(() => {
-    const el = scrollRef.current;
-    if (!el) return;
-    updateScrollState();
-    el.addEventListener("scroll", updateScrollState, { passive: true });
-    const ro = new ResizeObserver(updateScrollState);
-    ro.observe(el);
-    return () => { el.removeEventListener("scroll", updateScrollState); ro.disconnect(); };
-  }, [hotels.length, updateScrollState]);
-
-  const scroll = (dir) => {
-    const el = scrollRef.current;
-    if (!el) return;
-    const cardW = el.querySelector(".dhcard")?.offsetWidth ?? 260;
-    el.scrollBy({ left: dir * (cardW + 12) * 2, behavior: "smooth" });
-  };
 
   const loadMore = async () => {
     if (loadingMore || !hasMore) return;
     setLoadingMore(true);
     try {
-      const r = await apiFetch(`/api/desk/hotels?session_id=${encodeURIComponent(sessionId)}&offset=${hotels.length}&limit=12`);
+      const r = await apiFetch(`/api/desk/hotels?session_id=${encodeURIComponent(sessionId)}&offset=${hotels.length}&limit=${_PREVIEW_GRID_SIZE}`);
       if (r.ok) {
         const data = await r.json();
         setHotels((prev) => [...prev, ...(data.hotels ?? [])]);
@@ -409,44 +626,31 @@ function PreviewResult({ message, onHide, onAnalyze = null, sessionId }) {
   const annotations = message.hotel_annotations ?? [];
   const annMap = {};
   for (const a of annotations) { if (a.hotel_name) annMap[a.hotel_name] = a; }
-  if (!hotels.length) return null;
+
   const isFinal = message.previewFinal;
   const isSearching = !isFinal;
 
+  // During search: show arrived cards + skeleton placeholders filling remaining grid slots
+  const skeletonCount = isSearching ? Math.max(0, _PREVIEW_GRID_SIZE - hotels.length) : 0;
+
   return (
     <div className="desk-result-block">
-      <div className="desk-carousel-wrap">
-        {canScrollLeft && (
-          <button className="desk-carousel-arrow desk-carousel-arrow--left" onClick={() => scroll(-1)} aria-label="Назад">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
-          </button>
-        )}
-        <div className="desk-hotel-carousel" ref={scrollRef}>
-          {hotels.map((h) => (
-            <DeskHotelCard key={h.hotel_id} hotel={h} onHide={(name) => onHide(name)} selected={false} onSelect={() => {}} annotation={annMap[h.hotel_name] ?? null} loading={isSearching} />
-          ))}
-          {hasMore && isFinal && (
-            <button className="desk-carousel-more" onClick={loadMore} disabled={loadingMore}>
-              {loadingMore ? (
-                <span className="desk-carousel-more-spin" />
-              ) : (
-                <>
-                  <span className="desk-carousel-more-count">+{total - hotels.length}</span>
-                  <span className="desk-carousel-more-label">ещё</span>
-                </>
-              )}
-            </button>
-          )}
-        </div>
-        {canScrollRight && (
-          <button className="desk-carousel-arrow desk-carousel-arrow--right" onClick={() => scroll(1)} aria-label="Вперёд">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-          </button>
-        )}
+      <div className="desk-preview-grid">
+        {hotels.map((h, i) => (
+          <PreviewCard key={h.hotel_id} hotel={h} annotation={annMap[h.hotel_name] ?? null} index={i} />
+        ))}
+        {Array.from({ length: skeletonCount }, (_, i) => (
+          <SkeletonCard key={`sk-${i}`} index={hotels.length + i} />
+        ))}
       </div>
       {isFinal && (
-        <div className="desk-carousel-footer">
-          <span className="desk-carousel-counter">{hotels.length} из {total}</span>
+        <div className="desk-preview-footer">
+          <span className="desk-preview-counter">{hotels.length} из {total}</span>
+          {hasMore && (
+            <button className="desk-preview-more" onClick={loadMore} disabled={loadingMore}>
+              {loadingMore ? "Загрузка…" : `Ещё +${Math.min(total - hotels.length, _PREVIEW_GRID_SIZE)}`}
+            </button>
+          )}
           {onAnalyze && (
             <button className="desk-analyze-btn" onClick={onAnalyze}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01z"/></svg>
@@ -765,11 +969,7 @@ export default function DeskView({ sessionId, onTurnComplete }) {
             </div>
             <h2 className="desk-welcome-title">Welgo Desk</h2>
             <p className="desk-welcome-sub">{t("auth.agent_mode")}</p>
-            <div className="desk-chips">
-              {getDeskChips(t).map((chip) => (
-                <button key={chip} className="desk-chip" onClick={() => { posthog.capture("suggestion_chip_clicked", { chip }); handleSend(chip); }}>{chip}</button>
-              ))}
-            </div>
+            <WelcomeChips t={t} onFillInput={(msg) => { setText(msg); setTimeout(() => textareaRef.current?.focus(), 0); }} posthog={posthog} />
           </div>
         )}
         {messages.map((m, idx) => {

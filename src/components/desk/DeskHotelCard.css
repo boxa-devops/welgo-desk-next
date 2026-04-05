@@ -20,7 +20,6 @@
 .dhcard--budget { border-top: 3px solid var(--brand); }
 .dhcard--luxury { border-top: 3px solid #D97706; }
 .dhcard--beach  { border-top: 3px solid #0EA5E9; }
-.dhcard--risky  { border-top: 3px solid var(--muted); opacity: 0.85; }
 
 /* ── Photo ── */
 .dhcard-photo-wrap { position: relative; }
@@ -65,7 +64,6 @@
 .dhcard-tier--budget { background: var(--brand);  color: #fff; box-shadow: 0 1px 4px rgba(0,0,0,.25); }
 .dhcard-tier--luxury { background: #D97706;       color: #fff; box-shadow: 0 1px 4px rgba(0,0,0,.25); }
 .dhcard-tier--beach  { background: #0EA5E9;       color: #fff; box-shadow: 0 1px 4px rgba(0,0,0,.25); }
-.dhcard-tier--risky  { background: var(--muted);  color: #fff; box-shadow: 0 1px 4px rgba(0,0,0,.25); }
 
 /* Hide button */
 .dhcard-hide-btn {

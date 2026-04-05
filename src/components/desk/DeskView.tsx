@@ -16,10 +16,6 @@ import { usePostHog } from "@/lib/posthog";
 
 function getDestinations(t) {
   return [
-    { key: "kyrgyzstan", label: t("dest.kyrgyzstan"), emoji: "🇰🇬", hot: true },
-    { key: "tajikistan", label: t("dest.tajikistan"), emoji: "🇹🇯", hot: true },
-    { key: "kazakhstan", label: t("dest.kazakhstan"), emoji: "🇰🇿", hot: true },
-    { key: "saudi", label: t("dest.saudi"), emoji: "🇸🇦", hot: true },
     { key: "russia", label: t("dest.russia"), emoji: "🇷🇺" },
     { key: "turkey", label: t("dest.turkey"), emoji: "🇹🇷" },
     { key: "uae", label: t("dest.uae"), emoji: "🇦🇪" },
@@ -30,7 +26,6 @@ function getDestinations(t) {
     { key: "georgia", label: t("dest.georgia"), emoji: "🇬🇪" },
     { key: "vietnam", label: t("dest.vietnam"), emoji: "🇻🇳" },
     { key: "bali", label: t("dest.bali"), emoji: "🌴" },
-    { key: "cuba", label: t("dest.cuba"), emoji: "🇨🇺" },
   ];
 }
 

@@ -603,30 +603,56 @@ function SkeletonCard({ index }) {
   );
 }
 
-function PreviewResult({ message, onHide, onAnalyze = null, sessionId }) {
-  const [hotels, setHotels] = useState(message.previewHotels ?? []);
+function PreviewResult({ message, onHide, onAnalyze = null, sessionId, progress = 0 }) {
+  // Buffer of all hotels received from stream
+  const allHotelsRef = useRef<any[]>([]);
+  // Hotels currently visible in grid (animated drip)
+  const [displayedHotels, setDisplayedHotels] = useState<any[]>([]);
   const [loadingMore, setLoadingMore] = useState(false);
-  const total = message.previewTotal ?? hotels.length;
-  const hasMore = hotels.length < total;
+  const total = message.previewTotal ?? 0;
+  const isFinal = message.previewFinal;
+  const isSearching = !isFinal;
+  const isReadyToAnalyze = progress >= 100 || isFinal;
 
+  // Sync incoming hotels into buffer
   useEffect(() => {
     if (!message.previewHotels?.length) return;
-    setHotels((prev) => {
-      const existingIds = new Set(prev.map((h) => h.hotel_id));
-      const newOnes = message.previewHotels.filter((h) => !existingIds.has(h.hotel_id));
-      if (!newOnes.length) return prev; // nothing to add
-      return [...prev, ...newOnes];
-    });
+    const existingIds = new Set(allHotelsRef.current.map((h) => h.hotel_id));
+    const newOnes = message.previewHotels.filter((h) => !existingIds.has(h.hotel_id));
+    if (newOnes.length) allHotelsRef.current = [...allHotelsRef.current, ...newOnes];
   }, [message.previewHotels]);
+
+  // Drip hotels into grid during search; show all immediately when done
+  useEffect(() => {
+    if (!isSearching) {
+      setDisplayedHotels(allHotelsRef.current.map((h, i) => ({ ...h, _batchIdx: i % 4 })));
+      return;
+    }
+    const BATCH = 4;
+    const drip = () => {
+      setDisplayedHotels((prev) => {
+        const all = allHotelsRef.current;
+        if (prev.length >= all.length) return prev;
+        const batch = all.slice(prev.length, prev.length + BATCH).map((h, i) => ({ ...h, _batchIdx: i }));
+        return [...prev, ...batch];
+      });
+    };
+    drip(); // first drip immediately
+    const interval = setInterval(drip, 1300);
+    return () => clearInterval(interval);
+  }, [isSearching]);
+
+  const hasMore = displayedHotels.length < total;
 
   const loadMore = async () => {
     if (loadingMore || !hasMore) return;
     setLoadingMore(true);
     try {
-      const r = await apiFetch(`/api/desk/hotels?session_id=${encodeURIComponent(sessionId)}&offset=${hotels.length}&limit=${_PREVIEW_GRID_SIZE}`);
+      const r = await apiFetch(`/api/desk/hotels?session_id=${encodeURIComponent(sessionId)}&offset=${displayedHotels.length}&limit=${_PREVIEW_GRID_SIZE}`);
       if (r.ok) {
         const data = await r.json();
-        setHotels((prev) => [...prev, ...(data.hotels ?? [])]);
+        const newHotels = (data.hotels ?? []).map((h, i) => ({ ...h, _batchIdx: i % 4 }));
+        setDisplayedHotels((prev) => [...prev, ...newHotels]);
       }
     } finally { setLoadingMore(false); }
   };
@@ -635,38 +661,40 @@ function PreviewResult({ message, onHide, onAnalyze = null, sessionId }) {
   const annMap = {};
   for (const a of annotations) { if (a.hotel_name) annMap[a.hotel_name] = a; }
 
-  const isFinal = message.previewFinal;
-  const isSearching = !isFinal;
-
-  // During search: show arrived cards + skeleton placeholders filling remaining grid slots
-  const skeletonCount = isSearching ? Math.max(0, _PREVIEW_GRID_SIZE - hotels.length) : 0;
+  // Show 8 skeleton placeholders minus already displayed, to hint at "more coming"
+  const skeletonCount = isSearching ? Math.max(0, 8 - displayedHotels.length) : 0;
 
   return (
     <div className="desk-result-block">
-      <div className="desk-preview-grid">
-        {hotels.map((h, i) => (
-          <PreviewCard key={h.hotel_id} hotel={h} annotation={annMap[h.hotel_name] ?? null} index={i} />
+      <div className="desk-preview-grid desk-preview-grid--bounded">
+        {displayedHotels.map((h) => (
+          <PreviewCard key={h.hotel_id} hotel={h} annotation={annMap[h.hotel_name] ?? null} index={h._batchIdx ?? 0} />
         ))}
         {Array.from({ length: skeletonCount }, (_, i) => (
-          <SkeletonCard key={`sk-${i}`} index={hotels.length + i} />
+          <SkeletonCard key={`sk-${i}`} index={displayedHotels.length + i} />
         ))}
       </div>
-      {isFinal && (
-        <div className="desk-preview-footer">
-          <span className="desk-preview-counter">{hotels.length} из {total}</span>
-          {hasMore && (
-            <button className="desk-preview-more" onClick={loadMore} disabled={loadingMore}>
-              {loadingMore ? "Загрузка…" : `Ещё +${Math.min(total - hotels.length, _PREVIEW_GRID_SIZE)}`}
-            </button>
-          )}
-          {onAnalyze && (
-            <button className="desk-analyze-btn" onClick={onAnalyze}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01z"/></svg>
-              Анализировать
-            </button>
-          )}
-        </div>
-      )}
+      <div className="desk-preview-footer">
+        {isFinal && <span className="desk-preview-counter">{displayedHotels.length} из {total}</span>}
+        {isFinal && hasMore && (
+          <button className="desk-preview-more" onClick={loadMore} disabled={loadingMore}>
+            {loadingMore ? "Загрузка…" : `Ещё +${Math.min(total - displayedHotels.length, _PREVIEW_GRID_SIZE)}`}
+          </button>
+        )}
+        {onAnalyze && (
+          <button
+            className={`desk-analyze-btn${isReadyToAnalyze ? " desk-analyze-btn--ready" : ""}`}
+            onClick={isReadyToAnalyze ? onAnalyze : undefined}
+            disabled={!isReadyToAnalyze}
+            title={isReadyToAnalyze ? "Запустить AI-анализ" : "Дождитесь завершения поиска"}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01z"/>
+            </svg>
+            Анализировать
+          </button>
+        )}
+      </div>
     </div>
   );
 }
@@ -997,7 +1025,7 @@ export default function DeskView({ sessionId, onTurnComplete }) {
             }
             return (<div key={m.id}>{m.thought && <ThoughtBubble thought={m.thought} />}<ThinkingBubble statusText={m.statusText} progress={m.progress} hotelsFound={m.hotelsFound} hotelNames={m.hotelNames} /></div>);
           }
-          if (m.state === "previewing" || m.state === "analyzing") return (<div key={m.id}>{m.thought && <ThoughtBubble thought={m.thought} />}{m.state === "previewing" && !m.previewFinal && <ThinkingBubble statusText={m.statusText} progress={m.progress} hotelsFound={m.hotelsFound} hotelNames={m.hotelNames} />}{m.previewHotels && (<div className="desk-result-wrap"><div className="desk-avatar" aria-label="Welgo Desk AI">D</div><PreviewResult message={m} onHide={handleHide} onAnalyze={m.previewFinal ? () => handleSend("Анализировать", [{ action: "analyze" }]) : null} sessionId={sessionId} /></div>)}{m.streamingAnalysis && <StreamingAnalysis text={m.streamingAnalysis} />}</div>);
+          if (m.state === "previewing" || m.state === "analyzing") return (<div key={m.id}>{m.thought && <ThoughtBubble thought={m.thought} />}{m.state === "previewing" && !m.previewFinal && <ThinkingBubble statusText={m.statusText} progress={m.progress} hotelsFound={m.hotelsFound} hotelNames={m.hotelNames} />}{m.previewHotels && (<div className="desk-result-wrap"><div className="desk-avatar" aria-label="Welgo Desk AI">D</div><PreviewResult message={m} onHide={handleHide} onAnalyze={() => handleSend("Анализировать", [{ action: "analyze" }])} progress={m.progress ?? 0} sessionId={sessionId} /></div>)}{m.streamingAnalysis && <StreamingAnalysis text={m.streamingAnalysis} />}</div>);
           if (m.state === "clarify") return (<div key={m.id}>{m.thought && <ThoughtBubble thought={m.thought} />}<ClarifyBubble message={m} onSearch={handleSend} /></div>);
           if (m.state === "alternatives") return (<div key={m.id}>{m.thought && <ThoughtBubble thought={m.thought} />}<AlternativesBubble message={m} onSearch={handleSend} /></div>);
           if (m.state === "error") return (<div key={m.id} className="desk-error" role="alert">{"\u041E\u0448\u0438\u0431\u043A\u0430: "}{m.error}</div>);

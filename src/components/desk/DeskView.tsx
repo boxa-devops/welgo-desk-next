@@ -757,6 +757,12 @@ function StructuredResult({ message, sessionId, onHide, onShowAll }) {
         </div>
       )}
       {recRestText && (<p className="desk-verdict-rest">{recRestText}</p>)}
+      {message.timing && (
+        <div className="desk-timing-badge">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          <span>{t("timing.compared", { n: message.timing.totalOptions, s: message.timing.elapsedSeconds })}</span>
+        </div>
+      )}
       {presentTiers.length > 1 && (
         <div className="desk-tier-selector" role="group" aria-label={"\u0424\u0438\u043B\u044C\u0442\u0440 \u043F\u043E \u043A\u0440\u0438\u0442\u0435\u0440\u0438\u044E"}>
           <button className={`desk-tier-pill${activeTier === null ? " desk-tier-pill--active" : ""}`} onClick={() => setActiveTier(null)}>{"\u0422\u043E\u043F"}</button>
@@ -798,7 +804,7 @@ function StructuredResult({ message, sessionId, onHide, onShowAll }) {
         </button>
       )}
       <DeskAnalysisPanel text={structured.ai_analysis} fromCache={structured.meta?.from_cache} totalFound={total} />
-      <DeskQuoteBox text={customQuote ?? structured.client_quote} />
+      <DeskQuoteBox text={customQuote ?? structured.client_quote} hotels={selCount > 0 ? visibleHotels.filter((h) => selectedIds.has(h.hotel_id)) : parallelTop} annotations={annMap} />
     </div>
   );
 }
@@ -862,7 +868,7 @@ export default function DeskView({ sessionId, onTurnComplete }) {
     setMessages((prev) => [
       ...prev.filter((m) => m.type !== "welcome"),
       ...(isExclusion ? [] : [{ id: userId, type: "user", text: rawText }]),
-      { id: aiId, type: "desk-ai", state: "thinking", userText: rawText, statusText: "", progress: 0, hotelsFound: 0, hotelNames: [], thought: null, streamingAnalysis: "", structured: null, hotel_annotations: [], previewHotels: null, previewFinal: false, previewTotal: 0, previewFilters: null, previewQuickActions: null, previewClientQuote: null, plain_text: null, clarify: null, alternatives: null, filteredHotels: null, filterState: EMPTY_FILTER, filterLoading: false, error: null },
+      { id: aiId, type: "desk-ai", state: "thinking", userText: rawText, statusText: "", progress: 0, hotelsFound: 0, hotelNames: [], thought: null, streamingAnalysis: "", structured: null, hotel_annotations: [], previewHotels: null, previewFinal: false, previewTotal: 0, previewFilters: null, previewQuickActions: null, previewClientQuote: null, plain_text: null, clarify: null, alternatives: null, filteredHotels: null, filterState: EMPTY_FILTER, filterLoading: false, timing: null, error: null },
     ]);
     setIsThinking(true);
     try {
@@ -909,6 +915,7 @@ export default function DeskView({ sessionId, onTurnComplete }) {
           if (chunk.type === "hotel_annotate") { setMessages((prev) => prev.map((m) => m.id === aiId ? { ...m, hotel_annotations: [...(m.hotel_annotations || []), chunk] } : m)); }
           if (chunk.type === "quick_actions") { updateMessage(aiId, { previewQuickActions: chunk.actions }); }
           if (chunk.type === "client_quote") { updateMessage(aiId, { previewClientQuote: chunk.text }); }
+          if (chunk.type === "timing") { updateMessage(aiId, { timing: { totalOptions: chunk.total_options, elapsedSeconds: chunk.elapsed_seconds } }); }
           if (chunk.type === "result") { updateMessage(aiId, { state: "done", structured: chunk.structured, hotel_annotations: chunk.hotel_annotations ?? [] }); }
           if (chunk.type === "clarify") { updateMessage(aiId, { state: "clarify", clarify: chunk }); }
           if (chunk.type === "alternatives") { updateMessage(aiId, { state: "alternatives", alternatives: chunk }); }

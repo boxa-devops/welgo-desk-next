@@ -1,8 +1,10 @@
 // src/components/desk/DeskQuoteBox.tsx
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { usePostHog } from "@/lib/posthog";
+import { useI18n } from "@/lib/i18n";
+import { fmtUzs, stars as starsUtil, ratingClass } from "@/utils";
 import "./DeskQuoteBox.css";
 
 const CopyIcon = () => (
@@ -24,19 +26,64 @@ const TelegramIcon = () => (
   </svg>
 );
 
-export default function DeskQuoteBox({ text }) {
+function ShareCard({ hotel, annotation }: { hotel: any; annotation?: any }) {
+  const rc = ratingClass(hotel.rating);
+  const [imgErr, setImgErr] = useState(false);
+  return (
+    <div className="dqb-share-card">
+      <div className="dqb-sc-photo">
+        {hotel.image_url && !imgErr ? (
+          <img src={hotel.image_url} alt={hotel.hotel_name} loading="lazy" onError={() => setImgErr(true)} />
+        ) : (
+          <div className="dqb-sc-photo-placeholder">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" width="24" height="24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>
+          </div>
+        )}
+        {annotation?.is_recommended && <span className="dqb-sc-rec">★</span>}
+      </div>
+      <div className="dqb-sc-body">
+        <div className="dqb-sc-name">{hotel.hotel_name}</div>
+        <div className="dqb-sc-meta">
+          <span className="dqb-sc-stars">{starsUtil(hotel.stars)}</span>
+          <span className={`dqb-sc-rating ${rc}`}>{hotel.rating.toFixed(1)}</span>
+          <span className="dqb-sc-region">{hotel.region}</span>
+        </div>
+        {annotation?.insight && <div className="dqb-sc-insight">✓ {annotation.insight}</div>}
+        {annotation?.red_flag && <div className="dqb-sc-flag">⚠ {annotation.red_flag}</div>}
+        <div className="dqb-sc-details">
+          <span>{hotel.meal_plan}</span>
+          {hotel.sea_distance_m != null && <span>🌊 {hotel.sea_distance_m}м</span>}
+          <span>{hotel.nights}н · {hotel.departure_date}</span>
+        </div>
+        <div className="dqb-sc-price">
+          <span className="dqb-sc-price-usd">${hotel.price_usd_approx.toLocaleString("en-US")}</span>
+          <span className="dqb-sc-price-uzs">{fmtUzs(hotel.price_uzs)}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default function DeskQuoteBox({ text, hotels = [], annotations = {} }: { text: any; hotels?: any[]; annotations?: Record<string, any> }) {
   const posthog = usePostHog();
+  const { t } = useI18n();
   const [editedText, setEditedText] = useState(text);
   const [copied, setCopied] = useState(false);
+  const [tab, setTab] = useState<"visual" | "text">(hotels.length > 0 ? "visual" : "text");
+  const cardsRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setEditedText(text);
   }, [text]);
 
-  if (!text) return null;
+  useEffect(() => {
+    if (hotels.length > 0) setTab("visual");
+  }, [hotels.length]);
+
+  if (!text && !hotels.length) return null;
 
   const handleCopy = async () => {
-    posthog.capture("quote_copied");
+    posthog.capture("quote_copied", { mode: tab });
     try {
       await navigator.clipboard.writeText(editedText);
       setCopied(true);
@@ -62,26 +109,46 @@ export default function DeskQuoteBox({ text }) {
       <div className="dqb-header">
         <span className="dqb-label">
           <TelegramIcon />
-          Готово к отправке клиенту
+          {t("quote.ready")}
         </span>
-        <button
-          className={`dqb-copy-btn ${copied ? "dqb-copy-btn--done" : ""}`}
-          onClick={handleCopy}
-          title="Скопировать в буфер обмена"
-          aria-label="Скопировать сообщение"
-        >
-          {copied ? <CheckIcon /> : <CopyIcon />}
-          {copied ? "Скопировано!" : "Скопировать"}
-        </button>
+        <div className="dqb-header-actions">
+          {hotels.length > 0 && (
+            <div className="dqb-tab-switch">
+              <button className={`dqb-tab${tab === "visual" ? " active" : ""}`} onClick={() => setTab("visual")}>{t("quote.visual")}</button>
+              <button className={`dqb-tab${tab === "text" ? " active" : ""}`} onClick={() => setTab("text")}>{t("quote.text")}</button>
+            </div>
+          )}
+          {tab === "text" && (
+            <button
+              className={`dqb-copy-btn ${copied ? "dqb-copy-btn--done" : ""}`}
+              onClick={handleCopy}
+              title={t("quote.copy_title")}
+              aria-label={t("quote.copy_title")}
+            >
+              {copied ? <CheckIcon /> : <CopyIcon />}
+              {copied ? t("quote.copied") : t("quote.copy")}
+            </button>
+          )}
+        </div>
       </div>
-      <textarea
-        className="dqb-textarea"
-        value={editedText}
-        rows={rows}
-        onChange={(e) => setEditedText(e.target.value)}
-        spellCheck={false}
-        aria-label="Текст для клиента (редактируемый)"
-      />
+      {tab === "visual" && hotels.length > 0 && (
+        <div className="dqb-share-cards" ref={cardsRef}>
+          {hotels.map((h) => (
+            <ShareCard key={h.hotel_id} hotel={h} annotation={annotations[h.hotel_name]} />
+          ))}
+          <div className="dqb-sc-watermark">welgo.uz</div>
+        </div>
+      )}
+      {tab === "text" && (
+        <textarea
+          className="dqb-textarea"
+          value={editedText}
+          rows={rows}
+          onChange={(e) => setEditedText(e.target.value)}
+          spellCheck={false}
+          aria-label={t("quote.edit_label")}
+        />
+      )}
     </div>
   );
 }

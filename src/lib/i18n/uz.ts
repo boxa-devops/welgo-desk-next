@@ -118,6 +118,7 @@ export default {
   "wc.n4": "14 kecha",
 
   // ── Desk / Chat ────────────────────────────────────────────────────────
+  "timing.compared": "{n} ta variantni {s} soniyada solishtirdi",
   "picker.from": "Dan",
   "picker.to": "Gacha",
   "picker.apply": "Qo'llash",
@@ -200,8 +201,13 @@ export default {
 
   // ── Quote box ──────────────────────────────────────────────────────────
   "quote.title": "Mijozga xabar",
+  "quote.ready": "Mijozga yuborishga tayyor",
+  "quote.visual": "Kartochkalar",
+  "quote.text": "Matn",
   "quote.copy": "Nusxalash",
   "quote.copied": "Nusxalandi!",
+  "quote.copy_title": "Buferga nusxalash",
+  "quote.edit_label": "Mijoz uchun matn (tahrirlanadigan)",
   "quote.contact_cta": "Tafsilotlar va bron qilish uchun biz bilan bog'laning!",
 
   // ── Tour prompt builder ────────────────────────────────────────────────

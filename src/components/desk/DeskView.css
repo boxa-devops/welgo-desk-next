@@ -513,6 +513,27 @@
   word-break: break-word;
 }
 
+/* ── Timing badge ── */
+.desk-timing-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  margin: 4px 0 8px;
+  background: color-mix(in srgb, var(--brand) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--brand) 20%, transparent);
+  border-radius: var(--radius-pill);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--brand-dark, var(--brand));
+  letter-spacing: 0.01em;
+}
+
+.desk-timing-badge svg {
+  flex-shrink: 0;
+  color: var(--brand);
+}
+
 /* ── Tier selector ── */
 .desk-tier-selector {
   display: flex;

@@ -15,6 +15,9 @@
   transform: translateY(-2px);
 }
 
+.dhcard--clickable { cursor: pointer; }
+.dhcard--clickable:active { transform: translateY(0) scale(0.98); }
+
 /* Tier accent border-top */
 .dhcard--value  { border-top: 3px solid var(--green); }
 .dhcard--budget { border-top: 3px solid var(--brand); }

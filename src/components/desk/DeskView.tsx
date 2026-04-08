@@ -748,7 +748,7 @@ function PreviewResult({ message, onHide, onAnalyze = null, sessionId, progress 
   );
 }
 
-function StructuredResult({ message, sessionId, onHide, onShowAll }) {
+function StructuredResult({ message, sessionId, onHide, onShowAll, onHotelClick = null }) {
   const { t } = useI18n();
   const TIER_META = getTierMeta(t);
   const [activeTier, setActiveTier] = useState(null);
@@ -838,7 +838,7 @@ function StructuredResult({ message, sessionId, onHide, onShowAll }) {
       ) : (
         <div className="desk-hotel-grid">
           {visibleHotels.map((h) => (
-            <DeskHotelCard key={h.hotel_id} hotel={h} onHide={(name) => onHide(name)} selected={selectedIds.has(h.hotel_id)} onSelect={handleSelect} annotation={annMap[h.hotel_name] ?? null} />
+            <DeskHotelCard key={h.hotel_id} hotel={h} onHide={(name) => onHide(name)} selected={selectedIds.has(h.hotel_id)} onSelect={handleSelect} annotation={annMap[h.hotel_name] ?? null} onClick={onHotelClick ? () => onHotelClick(h) : undefined} />
           ))}
         </div>
       )}
@@ -1050,7 +1050,7 @@ export default function DeskView({ sessionId, onTurnComplete }) {
           filters={last?.structured?.available_filters ?? null} filterState={last?.filterState ?? EMPTY_FILTER}
           filterLoading={last?.filterLoading ?? false} filteredHotels={last?.filteredHotels ?? null}
           onFilterChange={(val, commit) => last && handleFilterChange(last.id, val, commit)}
-          onClose={() => setAllHotelsOpen(false)} onSummarize={handleSummarize} onSimilar={handleSimilar} />);
+          onClose={() => setAllHotelsOpen(false)} onSummarize={handleSummarize} onSimilar={handleSimilar} onHotelClick={(h) => setDetailHotel(h)} />);
       })()}
       {detailHotel && (
         <HotelDetailModal hotel={detailHotel} sessionId={sessionId} onClose={() => setDetailHotel(null)} />
@@ -1092,8 +1092,9 @@ export default function DeskView({ sessionId, onTurnComplete }) {
           if (m.plain_text) return <PlainBubble key={m.id} text={m.plain_text} />;
           if (m.structured) {
             return (<div key={m.id}>{m.thought && <ThoughtBubble thought={m.thought} />}
+              {m.previewHotels && (<div className="desk-result-wrap"><div className="desk-avatar" aria-label="Welgo Desk AI">D</div><PreviewResult message={m} onHide={handleHide} progress={100} sessionId={sessionId} onHotelClick={(h) => setDetailHotel(h)} /></div>)}
               <div className="desk-result-wrap"><div className="desk-avatar" aria-label="Welgo Desk AI">D</div>
-                <StructuredResult message={m} sessionId={sessionId} onHide={handleHide} onShowAll={() => { posthog.capture("all_hotels_opened"); setAllHotelsOpen(true); }} />
+                <StructuredResult message={m} sessionId={sessionId} onHide={handleHide} onShowAll={() => { posthog.capture("all_hotels_opened"); setAllHotelsOpen(true); }} onHotelClick={(h) => setDetailHotel(h)} />
               </div></div>);
           }
           return null;

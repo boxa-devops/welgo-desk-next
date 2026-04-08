@@ -108,7 +108,7 @@ function fmtPillDate(dateStr) {
   return `${day} ${MONTHS_SHORT[mo]}`;
 }
 
-export default function DeskHotelCard({ hotel, onHide, selected, onSelect, annotation, loading = false }) {
+export default function DeskHotelCard({ hotel, onHide, selected, onSelect, annotation, loading = false, onClick = undefined }) {
   const posthog = usePostHog();
   const rc = ratingClass(hotel.rating);
   const tier = hotel.value_tier;
@@ -126,7 +126,9 @@ export default function DeskHotelCard({ hotel, onHide, selected, onSelect, annot
   const handleSelect = (e) => { e.stopPropagation(); onSelect?.(hotel.hotel_id); };
 
   return (
-    <article className={`dhcard dhcard--${tier}${selected ? " dhcard--selected" : ""}${loading ? " dhcard--loading" : ""}`}>
+    <article className={`dhcard dhcard--${tier}${selected ? " dhcard--selected" : ""}${loading ? " dhcard--loading" : ""}${onClick ? " dhcard--clickable" : ""}`}
+      onClick={onClick} role={onClick ? "button" : undefined} tabIndex={onClick ? 0 : undefined}
+      onKeyDown={onClick ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onClick(); } } : undefined}>
       <div className="dhcard-photo-wrap">
         <HotelPhoto src={hotel.image_url} name={hotel.hotel_name} />
         <div className={`dhcard-tier dhcard-tier--${tier}`}>{TIER_LABELS[tier]}</div>

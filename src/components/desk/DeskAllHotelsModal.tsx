@@ -55,7 +55,7 @@ function CompareDrawer({ hotels }) {
   );
 }
 
-function HotelCard({ hotel, selected, onToggle, onSimilar }) {
+function HotelCard({ hotel, selected, onToggle, onSimilar, onDetail = null }) {
   return (
     <div className={`dahm-card ${selected ? 'selected' : ''}`} onClick={() => onToggle(hotel.hotel_id)}>
       <div className="dahm-card-check">
@@ -78,6 +78,11 @@ function HotelCard({ hotel, selected, onToggle, onSimilar }) {
         </div>
         <div className="dahm-card-meta" style={{ marginTop: 3 }}>{hotel.meal_plan} · {hotel.nights} ночей</div>
         <div className="dahm-card-actions">
+          {onDetail && (
+            <button className="dahm-card-btn" onClick={e => { e.stopPropagation(); onDetail(hotel); }}>
+              Подробнее
+            </button>
+          )}
           <button className="dahm-card-btn" onClick={e => { e.stopPropagation(); onSimilar(hotel); }}>
             Похожие
           </button>
@@ -88,7 +93,7 @@ function HotelCard({ hotel, selected, onToggle, onSimilar }) {
 }
 
 export default function DeskAllHotelsModal({
-  sessionId, totalFound, onClose, onSummarize, onSimilar,
+  sessionId, totalFound, onClose, onSummarize, onSimilar, onHotelClick = null,
   filters, filterState, filterLoading, filteredHotels, onFilterChange,
 }) {
   const [hotels, setHotels] = useState([]);
@@ -182,7 +187,7 @@ export default function DeskAllHotelsModal({
             <div className="dahm-grid" key={gridKeyRef.current}>
               {paged.map(hotel => (
                 <HotelCard key={hotel.hotel_id} hotel={hotel} selected={selected.has(hotel.hotel_id)}
-                  onToggle={toggleSelect} onSimilar={h => { onSimilar(h); onClose(); }} />
+                  onToggle={toggleSelect} onSimilar={h => { onSimilar(h); onClose(); }} onDetail={onHotelClick} />
               ))}
             </div>
           )}

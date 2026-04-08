@@ -7,6 +7,7 @@ import PreviewCard from "./PreviewCard";
 import DeskAnalysisPanel, { splitAnalysis } from "./DeskAnalysisPanel";
 import DeskQuoteBox from "./DeskQuoteBox";
 import DeskAllHotelsModal from "./DeskAllHotelsModal";
+import HotelDetailModal from "./HotelDetailModal";
 import TourPromptBuilder from "./TourPromptBuilder";
 import { apiFetch } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
@@ -581,8 +582,6 @@ function buildQuote(hotels, t) {
   return lines.join("\n");
 }
 
-const _PREVIEW_GRID_SIZE = 12;
-
 function SkeletonCard({ index }) {
   return (
     <div className="pcard-skeleton" style={{ animationDelay: `${index * 60}ms` }}>
@@ -598,12 +597,17 @@ function SkeletonCard({ index }) {
   );
 }
 
-function PreviewResult({ message, onHide, onAnalyze = null, sessionId, progress = 0 }) {
+const _PREVIEW_PAGE_SIZE = 12;
+
+function PreviewResult({ message, onHide, onAnalyze = null, sessionId, progress = 0, onHotelClick = null }) {
   // Buffer of all hotels received from stream
   const allHotelsRef = useRef<any[]>([]);
-  // Hotels currently visible in grid (animated drip)
+  // All loaded hotels (stream + fetched pages)
+  const [allLoaded, setAllLoaded] = useState<any[]>([]);
+  // Hotels currently visible in grid (animated drip during search)
   const [displayedHotels, setDisplayedHotels] = useState<any[]>([]);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
   const total = message.previewTotal ?? 0;
   const isFinal = message.previewFinal;
   const isSearching = !isFinal;
@@ -614,13 +618,17 @@ function PreviewResult({ message, onHide, onAnalyze = null, sessionId, progress 
     if (!message.previewHotels?.length) return;
     const existingIds = new Set(allHotelsRef.current.map((h) => h.hotel_id));
     const newOnes = message.previewHotels.filter((h) => !existingIds.has(h.hotel_id));
-    if (newOnes.length) allHotelsRef.current = [...allHotelsRef.current, ...newOnes];
+    if (newOnes.length) {
+      allHotelsRef.current = [...allHotelsRef.current, ...newOnes];
+      setAllLoaded([...allHotelsRef.current]);
+    }
   }, [message.previewHotels]);
 
-  // Drip hotels into grid during search; show all immediately when done
+  // Drip hotels into grid during search; paginate when done
   useEffect(() => {
     if (!isSearching) {
-      setDisplayedHotels(allHotelsRef.current.map((h, i) => ({ ...h, _batchIdx: i % 4 })));
+      setDisplayedHotels(allLoaded.slice(0, _PREVIEW_PAGE_SIZE).map((h, i) => ({ ...h, _batchIdx: i % 4 })));
+      setCurrentPage(1);
       return;
     }
     const BATCH = 4;
@@ -632,22 +640,41 @@ function PreviewResult({ message, onHide, onAnalyze = null, sessionId, progress 
         return [...prev, ...batch];
       });
     };
-    drip(); // first drip immediately
+    drip();
     const interval = setInterval(drip, 1300);
     return () => clearInterval(interval);
-  }, [isSearching]);
+  }, [isSearching, allLoaded]);
 
-  const hasMore = displayedHotels.length < total;
+  const totalPages = Math.max(1, Math.ceil(total / _PREVIEW_PAGE_SIZE));
 
-  const loadMore = async () => {
-    if (loadingMore || !hasMore) return;
+  const goToPage = async (page: number) => {
+    if (page < 1 || page > totalPages || loadingMore) return;
+    const offset = (page - 1) * _PREVIEW_PAGE_SIZE;
+    // Check if we already have enough loaded
+    if (offset + _PREVIEW_PAGE_SIZE <= allLoaded.length || offset < allLoaded.length) {
+      const slice = allLoaded.slice(offset, offset + _PREVIEW_PAGE_SIZE);
+      if (slice.length >= Math.min(_PREVIEW_PAGE_SIZE, total - offset)) {
+        setDisplayedHotels(slice.map((h, i) => ({ ...h, _batchIdx: i % 4 })));
+        setCurrentPage(page);
+        return;
+      }
+    }
+    // Fetch from backend
     setLoadingMore(true);
     try {
-      const r = await apiFetch(`/api/desk/hotels?session_id=${encodeURIComponent(sessionId)}&offset=${displayedHotels.length}&limit=${_PREVIEW_GRID_SIZE}`);
+      const r = await apiFetch(`/api/desk/hotels?session_id=${encodeURIComponent(sessionId)}&offset=${offset}&limit=${_PREVIEW_PAGE_SIZE}`);
       if (r.ok) {
         const data = await r.json();
-        const newHotels = (data.hotels ?? []).map((h, i) => ({ ...h, _batchIdx: i % 4 }));
-        setDisplayedHotels((prev) => [...prev, ...newHotels]);
+        const fetched = (data.hotels ?? []).map((h, i) => ({ ...h, _batchIdx: i % 4 }));
+        // Extend allLoaded if needed
+        setAllLoaded((prev) => {
+          const merged = [...prev];
+          const existingIds = new Set(merged.map((h) => h.hotel_id));
+          for (const h of fetched) { if (!existingIds.has(h.hotel_id)) merged.push(h); }
+          return merged;
+        });
+        setDisplayedHotels(fetched);
+        setCurrentPage(page);
       }
     } finally { setLoadingMore(false); }
   };
@@ -656,26 +683,53 @@ function PreviewResult({ message, onHide, onAnalyze = null, sessionId, progress 
   const annMap = {};
   for (const a of annotations) { if (a.hotel_name) annMap[a.hotel_name] = a; }
 
-  // Show 8 skeleton placeholders minus already displayed, to hint at "more coming"
   const skeletonCount = isSearching ? Math.max(0, 8 - displayedHotels.length) : 0;
+
+  // Build page numbers to show
+  const pageNumbers: (number | "...")[] = [];
+  if (totalPages <= 7) {
+    for (let i = 1; i <= totalPages; i++) pageNumbers.push(i);
+  } else {
+    pageNumbers.push(1);
+    if (currentPage > 3) pageNumbers.push("...");
+    for (let i = Math.max(2, currentPage - 1); i <= Math.min(totalPages - 1, currentPage + 1); i++) pageNumbers.push(i);
+    if (currentPage < totalPages - 2) pageNumbers.push("...");
+    pageNumbers.push(totalPages);
+  }
 
   return (
     <div className="desk-result-block">
-      <div className="desk-preview-grid desk-preview-grid--bounded">
+      <div className="desk-preview-grid">
         {displayedHotels.map((h) => (
-          <PreviewCard key={h.hotel_id} hotel={h} annotation={annMap[h.hotel_name] ?? null} index={h._batchIdx ?? 0} />
+          <PreviewCard key={h.hotel_id} hotel={h} annotation={annMap[h.hotel_name] ?? null} index={h._batchIdx ?? 0} onClick={onHotelClick} />
         ))}
         {Array.from({ length: skeletonCount }, (_, i) => (
           <SkeletonCard key={`sk-${i}`} index={displayedHotels.length + i} />
         ))}
       </div>
       <div className="desk-preview-footer">
-        {isFinal && <span className="desk-preview-counter">{displayedHotels.length} из {total}</span>}
-        {isFinal && hasMore && (
-          <button className="desk-preview-more" onClick={loadMore} disabled={loadingMore}>
-            {loadingMore ? "Загрузка…" : `Ещё +${Math.min(total - displayedHotels.length, _PREVIEW_GRID_SIZE)}`}
-          </button>
+        {isFinal && totalPages > 1 && (
+          <div className="desk-pagination">
+            <button className="desk-page-btn" onClick={() => goToPage(currentPage - 1)} disabled={currentPage <= 1 || loadingMore} aria-label="Предыдущая">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+            </button>
+            {pageNumbers.map((p, i) =>
+              p === "..." ? (
+                <span key={`dots-${i}`} className="desk-page-dots">...</span>
+              ) : (
+                <button key={p} className={`desk-page-btn${p === currentPage ? " desk-page-btn--active" : ""}`}
+                  onClick={() => goToPage(p as number)} disabled={loadingMore}>
+                  {p}
+                </button>
+              )
+            )}
+            <button className="desk-page-btn" onClick={() => goToPage(currentPage + 1)} disabled={currentPage >= totalPages || loadingMore} aria-label="Следующая">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+            </button>
+            <span className="desk-preview-counter">{total} отелей</span>
+          </div>
         )}
+        {isFinal && totalPages <= 1 && <span className="desk-preview-counter">{displayedHotels.length} из {total}</span>}
         {onAnalyze && (
           <button
             className={`desk-analyze-btn${isReadyToAnalyze ? " desk-analyze-btn--ready" : ""}`}
@@ -816,6 +870,7 @@ export default function DeskView({ sessionId, onTurnComplete }) {
   const isThinkingRef = useRef(false);
   const [text, setText] = useState("");
   const [allHotelsOpen, setAllHotelsOpen] = useState(false);
+  const [detailHotel, setDetailHotel] = useState(null);
   const [builderOpen, setBuilderOpen] = useState(false);
   const [clientInfo, setClientInfo] = useState(null);
   const [pendingClientForm, setPendingClientForm] = useState(null);
@@ -997,6 +1052,9 @@ export default function DeskView({ sessionId, onTurnComplete }) {
           onFilterChange={(val, commit) => last && handleFilterChange(last.id, val, commit)}
           onClose={() => setAllHotelsOpen(false)} onSummarize={handleSummarize} onSimilar={handleSimilar} />);
       })()}
+      {detailHotel && (
+        <HotelDetailModal hotel={detailHotel} sessionId={sessionId} onClose={() => setDetailHotel(null)} />
+      )}
       <div className="desk-scroll" ref={scrollRef} role="log" aria-live="polite">
         {showWelcome && (
           <div className="desk-welcome">
@@ -1027,7 +1085,7 @@ export default function DeskView({ sessionId, onTurnComplete }) {
             }
             return (<div key={m.id}>{m.thought && <ThoughtBubble thought={m.thought} />}<ThinkingBubble statusText={m.statusText} progress={m.progress} hotelsFound={m.hotelsFound} hotelNames={m.hotelNames} /></div>);
           }
-          if (m.state === "previewing" || m.state === "analyzing") return (<div key={m.id}>{m.thought && <ThoughtBubble thought={m.thought} />}{m.state === "previewing" && !m.previewFinal && <ThinkingBubble statusText={m.statusText} progress={m.progress} hotelsFound={m.hotelsFound} hotelNames={m.hotelNames} />}{m.previewHotels && (<div className="desk-result-wrap"><div className="desk-avatar" aria-label="Welgo Desk AI">D</div><PreviewResult message={m} onHide={handleHide} onAnalyze={() => handleSend("Анализировать", [{ action: "analyze" }])} progress={m.progress ?? 0} sessionId={sessionId} /></div>)}{m.streamingAnalysis && <StreamingAnalysis text={m.streamingAnalysis} />}</div>);
+          if (m.state === "previewing" || m.state === "analyzing") return (<div key={m.id}>{m.thought && <ThoughtBubble thought={m.thought} />}{m.state === "previewing" && !m.previewFinal && <ThinkingBubble statusText={m.statusText} progress={m.progress} hotelsFound={m.hotelsFound} hotelNames={m.hotelNames} />}{m.previewHotels && (<div className="desk-result-wrap"><div className="desk-avatar" aria-label="Welgo Desk AI">D</div><PreviewResult message={m} onHide={handleHide} onAnalyze={() => handleSend("Анализировать", [{ action: "analyze" }])} progress={m.progress ?? 0} sessionId={sessionId} onHotelClick={(h) => setDetailHotel(h)} /></div>)}{m.streamingAnalysis && <StreamingAnalysis text={m.streamingAnalysis} />}</div>);
           if (m.state === "clarify") return (<div key={m.id}>{m.thought && <ThoughtBubble thought={m.thought} />}<ClarifyBubble message={m} onSearch={handleSend} /></div>);
           if (m.state === "alternatives") return (<div key={m.id}>{m.thought && <ThoughtBubble thought={m.thought} />}<AlternativesBubble message={m} onSearch={handleSend} /></div>);
           if (m.state === "error") return (<div key={m.id} className="desk-error" role="alert">{"\u041E\u0448\u0438\u0431\u043A\u0430: "}{m.error}</div>);

@@ -22,14 +22,18 @@ function Photo({ src, name }) {
 
 const TIER_LABELS = { value: "Ценность", budget: "Цена", luxury: "Рейтинг", beach: "Море" };
 
-export default function PreviewCard({ hotel, annotation, index = 0 }) {
+export default function PreviewCard({ hotel, annotation, index = 0, onClick = null }) {
   const rc = ratingClass(hotel.rating);
   const tier = hotel.value_tier;
 
   return (
     <article
-      className={`pcard pcard--${tier}`}
+      className={`pcard pcard--${tier}${onClick ? " pcard--clickable" : ""}`}
       style={{ animationDelay: `${index * 60}ms` }}
+      onClick={onClick ? () => onClick(hotel) : undefined}
+      role={onClick ? "button" : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onKeyDown={onClick ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onClick(hotel); } } : undefined}
     >
       <div className="pcard-photo-wrap">
         <Photo src={hotel.image_url} name={hotel.hotel_name} />

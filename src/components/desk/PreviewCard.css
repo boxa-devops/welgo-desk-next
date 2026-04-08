@@ -15,6 +15,9 @@
   transform: translateY(-2px);
 }
 
+.pcard--clickable { cursor: pointer; }
+.pcard--clickable:active { transform: translateY(0) scale(0.98); }
+
 @keyframes pcard-appear {
   from {
     opacity: 0;

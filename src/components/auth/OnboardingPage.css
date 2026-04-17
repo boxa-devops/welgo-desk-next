@@ -37,13 +37,13 @@
   background: var(--brand);
   color: var(--brand-text);
   font-size: 26px;
-  font-weight: 800;
+  font-weight: 700;
   margin-bottom: 16px;
 }
 
 .onboard-title {
   font-size: 20px;
-  font-weight: 800;
+  font-weight: 700;
   color: var(--text);
   letter-spacing: -0.3px;
   margin-bottom: 8px;

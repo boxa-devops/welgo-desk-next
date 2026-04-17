@@ -3,6 +3,12 @@
 import "./MaintenancePage.css";
 
 export default function MaintenancePage() {
+  const handleReload = () => {
+    if (typeof window !== "undefined") {
+      window.location.reload();
+    }
+  };
+
   return (
     <div className="maintenance-page">
       <div className="maintenance-container">
@@ -14,11 +20,23 @@ export default function MaintenancePage() {
         </div>
         <h1 className="maintenance-title">Техническое обслуживание</h1>
         <p className="maintenance-description">
-          Welgo Desk находится на плановом техническом обслуживании.
+          Мы обновляем сервис. Обычно занимает 10–15 минут.
         </p>
-        <p className="maintenance-subtitle">
-          Мы вернемся очень скоро
-        </p>
+        <div className="maintenance-actions">
+          <button
+            type="button"
+            className="maintenance-reload"
+            onClick={handleReload}
+          >
+            Обновить страницу
+          </button>
+          <a
+            className="maintenance-support"
+            href="mailto:support@welgo.co"
+          >
+            Связаться с поддержкой
+          </a>
+        </div>
         <div className="maintenance-footer">
           <p>Спасибо за ваше терпение</p>
         </div>

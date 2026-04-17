@@ -18,7 +18,7 @@
 
 .sa-title {
   font-size: 22px;
-  font-weight: 800;
+  font-weight: 700;
   color: var(--text);
   letter-spacing: -0.4px;
   margin: 0 0 4px;
@@ -43,6 +43,45 @@
   text-align: center;
   color: var(--muted);
   font-size: 13px;
+}
+
+/* ── Controls (search + sort) ── */
+
+.sa-controls {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.sa-search {
+  flex: 1;
+  height: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--card);
+  color: var(--text);
+  font-size: 13px;
+  outline: none;
+  transition: border-color var(--transition), box-shadow var(--transition);
+}
+
+.sa-search::placeholder {
+  color: var(--muted);
+}
+
+.sa-sort {
+  height: 36px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--card);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  outline: none;
+  flex-shrink: 0;
 }
 
 /* ── List ── */

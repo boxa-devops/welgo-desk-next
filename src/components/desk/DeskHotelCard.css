@@ -1,3 +1,16 @@
+/* ── Screen-reader-only utility ── */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 /* ── Card shell ── */
 .dhcard {
   border: 1.5px solid var(--border);
@@ -68,15 +81,18 @@
 .dhcard-tier--luxury { background: #D97706;       color: #fff; box-shadow: 0 1px 4px rgba(0,0,0,.25); }
 .dhcard-tier--beach  { background: #0EA5E9;       color: #fff; box-shadow: 0 1px 4px rgba(0,0,0,.25); }
 
-/* Hide button */
+/* Hide button — always reachable via Tab, visible at rest (dimmed), full opacity on hover/focus */
 .dhcard-hide-btn {
   position: absolute;
   top: 8px;
   right: 8px;
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 4px;
-  padding: 4px 8px;
+  padding: 6px 10px;
+  min-width: 32px;
+  min-height: 32px;
   border-radius: var(--radius-sm);
   background: rgba(15,23,42,.65);
   backdrop-filter: blur(6px);
@@ -86,14 +102,20 @@
   font-weight: 600;
   font-family: inherit;
   cursor: pointer;
-  opacity: 0;
-  transition: opacity var(--transition), background var(--transition);
+  opacity: 0.4;
+  transition: opacity var(--transition), background var(--transition), box-shadow var(--transition);
 }
 
-.dhcard:hover .dhcard-hide-btn { opacity: 1; }
+.dhcard:hover .dhcard-hide-btn,
+.dhcard:focus-within .dhcard-hide-btn { opacity: 1; }
 
-.dhcard-hide-btn:hover {
+.dhcard-hide-btn:hover,
+.dhcard-hide-btn:focus,
+.dhcard-hide-btn:focus-visible {
+  opacity: 1;
   background: rgba(220, 38, 38, .85);
+  outline: none;
+  box-shadow: var(--shadow-focus);
 }
 
 /* ── Body ── */
@@ -159,7 +181,7 @@
   background: #22C55E;
   color: #fff;
   font-size: 9px;
-  font-weight: 800;
+  font-weight: 700;
   flex-shrink: 0;
   margin-top: 1px;
 }
@@ -190,7 +212,7 @@
   background: #EF4444;
   color: #fff;
   font-size: 9px;
-  font-weight: 800;
+  font-weight: 700;
   flex-shrink: 0;
   margin-top: 1px;
 }
@@ -290,7 +312,7 @@
 
 .dhcard-price {
   font-size: 19px;
-  font-weight: 800;
+  font-weight: 700;
   color: var(--text);
   letter-spacing: -0.02em;
   line-height: 1.1;
@@ -383,10 +405,11 @@
 }
 
 .dhcard-op-link-btn {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 22px;
+  gap: 2px;
+  min-width: 22px;
   height: 22px;
   border-radius: 5px;
   border: 1.5px solid var(--border);
@@ -394,15 +417,23 @@
   color: var(--muted);
   cursor: pointer;
   flex-shrink: 0;
-  transition: border-color 0.15s, color 0.15s, background 0.15s;
-  padding: 0;
+  transition: border-color var(--transition), color var(--transition), background var(--transition);
+  padding: 0 4px;
 }
-.dhcard-op-link-btn:hover:not(:disabled) {
+.dhcard-op-link-btn:hover:not(:disabled),
+.dhcard-op-link-btn:focus-visible:not(:disabled) {
   border-color: var(--brand);
   color: var(--brand);
-  background: var(--brand-mid);
+  background: var(--brand-light);
+  outline: none;
 }
 .dhcard-op-link-btn:disabled { opacity: 0.5; cursor: default; }
+
+.dhcard-op-link-glyph {
+  font-size: 11px;
+  line-height: 1;
+  font-weight: 600;
+}
 
 /* ── Selected state ── */
 .dhcard--selected {

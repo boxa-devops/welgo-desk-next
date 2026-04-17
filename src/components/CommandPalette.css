@@ -1,0 +1,223 @@
+.cp-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(17, 17, 17, 0.32);
+  backdrop-filter: blur(2px);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 12vh 16px 16px;
+  z-index: 120;
+  animation: cp-fade var(--transition-fast) ease-out;
+}
+
+.cp-modal {
+  width: 100%;
+  max-width: 560px;
+  max-height: 68vh;
+  background: var(--card);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-xl);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: cp-pop var(--transition) cubic-bezier(.2, .8, .2, 1);
+}
+
+.cp-input-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 14px 14px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.cp-search-icon {
+  color: var(--text-2);
+  flex: 0 0 auto;
+}
+
+.cp-input {
+  flex: 1;
+  border: none;
+  background: transparent;
+  font-size: var(--text-md);
+  font-weight: 500;
+  color: var(--text);
+  padding: 2px 0;
+  outline: none;
+  letter-spacing: -0.005em;
+}
+
+.cp-input::placeholder {
+  color: var(--muted);
+  font-weight: 400;
+}
+
+.cp-input:focus-visible {
+  box-shadow: none;
+  border: none;
+}
+
+.cp-list {
+  list-style: none;
+  margin: 0;
+  padding: 6px;
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+}
+
+.cp-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 10px;
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: background-color var(--transition-fast);
+}
+
+.cp-item--active {
+  background: var(--surface-2);
+}
+
+.cp-item-icon {
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  color: var(--text-2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.cp-item--new .cp-item-icon {
+  background: var(--brand-light);
+  color: var(--brand-dark);
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.cp-item--active .cp-item-icon {
+  background: var(--card);
+}
+
+.cp-item-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.cp-item-title {
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  letter-spacing: -0.005em;
+}
+
+.cp-item-hint {
+  font-size: var(--text-xs);
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cp-item-client {
+  color: var(--text-2);
+}
+
+.cp-item-current-tag {
+  color: var(--brand-dark);
+  font-weight: 500;
+}
+
+.cp-empty {
+  padding: 24px 16px;
+  color: var(--text-2);
+  font-size: var(--text-sm);
+  text-align: center;
+}
+
+.cp-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 14px;
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-2);
+  font-size: var(--text-xs);
+}
+
+.cp-footer span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.cp-kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  border-radius: var(--radius-sm);
+  background: var(--card);
+  border: 1px solid var(--border);
+  box-shadow: 0 1px 0 rgba(17, 17, 17, .04);
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-2);
+  line-height: 1;
+}
+
+.cp-kbd--close {
+  background: transparent;
+  border-color: var(--border);
+}
+
+.cp-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@keyframes cp-fade {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes cp-pop {
+  from { opacity: 0; transform: translateY(-8px) scale(.98); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@media (max-width: 640px) {
+  .cp-overlay { padding: 6vh 8px 8px; }
+  .cp-modal { max-height: 82vh; }
+  .cp-footer { flex-wrap: wrap; row-gap: 4px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cp-overlay, .cp-modal { animation: none; }
+}

@@ -128,6 +128,40 @@ const SendIcon = () => (
 );
 
 const EMPTY_FILTER = { priceMin: null, priceMax: null, starsMin: null, mealPlan: null, operators: [] };
+
+// ── sessionStorage helpers: key per (sessionId, messageId); 250ms debounced writes ──
+const _storageKey = (sessionId: string, messageId: string | number) => `welgo:desk:${sessionId}:${messageId}`;
+
+function _readPersisted(sessionId: string, messageId: string | number) {
+  try {
+    if (typeof window === "undefined") return null;
+    const raw = window.sessionStorage.getItem(_storageKey(sessionId, messageId));
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch { return null; }
+}
+
+function usePersistedState(sessionId: string, messageId: string | number) {
+  const pendingRef = useRef<any>(null);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const write = useCallback((patch: any) => {
+    if (typeof window === "undefined") return;
+    pendingRef.current = { ...(pendingRef.current || {}), ...patch };
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => {
+      try {
+        const key = _storageKey(sessionId, messageId);
+        const existing = _readPersisted(sessionId, messageId) || {};
+        const next = { ...existing, ...(pendingRef.current || {}) };
+        window.sessionStorage.setItem(key, JSON.stringify(next));
+      } catch {}
+      pendingRef.current = null;
+      timerRef.current = null;
+    }, 250);
+  }, [sessionId, messageId]);
+  useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current); }, []);
+  return write;
+}
 const PROFILE_EMOJI = { family_beach: "\u{1F468}\u200D\u{1F469}\u200D\u{1F467}", couple_romantic: "\u{1F491}", solo_adventure: "\u{1F9F3}", business_quick: "\u{1F4BC}", luxury_relaxation: "\u2728", budget_getaway: "\u{1F4B0}" };
 
 function ThoughtBubble({ thought }) {
@@ -735,12 +769,12 @@ function PreviewResult({ message, onHide, onAnalyze = null, sessionId, progress 
             className={`desk-analyze-btn${isReadyToAnalyze ? " desk-analyze-btn--ready" : ""}`}
             onClick={isReadyToAnalyze ? onAnalyze : undefined}
             disabled={!isReadyToAnalyze}
-            title={isReadyToAnalyze ? "Запустить AI-анализ" : "Дождитесь завершения поиска"}
+            title={isReadyToAnalyze ? "Анализировать" : "Дождитесь завершения поиска"}
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01z"/>
             </svg>
-            Анализировать
+            Анализ
           </button>
         )}
       </div>
@@ -751,21 +785,43 @@ function PreviewResult({ message, onHide, onAnalyze = null, sessionId, progress 
 function StructuredResult({ message, sessionId, onHide, onShowAll, onHotelClick = null }) {
   const { t } = useI18n();
   const TIER_META = getTierMeta(t);
-  const [activeTier, setActiveTier] = useState(null);
+  // Per-tier selection map. "all" bucket is used when no tier is active (Топ).
+  const TIER_ALL = "all";
+  const persisted = _readPersisted(sessionId, message.id);
+  const initialActiveTier: string | null = persisted?.activeTier ?? null;
+  const initialSelMap: Record<string, string[]> = persisted?.selectionsByTier ?? {};
+  const [activeTier, setActiveTier] = useState<string | null>(initialActiveTier);
   const [poolHotels, setPoolHotels] = useState(null);
   const [poolLoading, setPoolLoading] = useState(false);
-  const [selectedIds, setSelectedIds] = useState(new Set());
+  const [selectionsByTier, setSelectionsByTier] = useState<Record<string, Set<string>>>(() => {
+    const out: Record<string, Set<string>> = {};
+    for (const [k, arr] of Object.entries(initialSelMap)) out[k] = new Set(Array.isArray(arr) ? arr : []);
+    return out;
+  });
   const [customQuote, setCustomQuote] = useState(null);
   const posthog = usePostHog();
+  const persist = usePersistedState(sessionId, message.id);
   const { structured } = message;
   if (!structured) return null;
   const parallelTop = structured.ui_hotels;
   const total = structured.meta?.total_options_found ?? 0;
   const presentTiers = TIER_ORDER.filter((t) => parallelTop.some((h) => h.value_tier === t));
+  const tierKey = activeTier ?? TIER_ALL;
+  const currentTierSet: Set<string> = selectionsByTier[tierKey] ?? new Set();
+
+  useEffect(() => {
+    // Persist whenever selections or active tier change.
+    const serialised: Record<string, string[]> = {};
+    for (const [k, set] of Object.entries(selectionsByTier)) serialised[k] = Array.from(set);
+    persist({ activeTier, selectionsByTier: serialised });
+  }, [activeTier, selectionsByTier, persist]);
+
   const handleTierClick = async (tier) => {
     const next = activeTier === tier ? null : tier;
     setActiveTier(next);
     posthog.capture("tier_changed", { tier: next });
+    // Selections are preserved per tier — no clearing here.
+    setCustomQuote(null);
     if (next && !poolHotels) {
       setPoolLoading(true);
       try {
@@ -775,22 +831,29 @@ function StructuredResult({ message, sessionId, onHide, onShowAll, onHotelClick 
     }
   };
   const handleSelect = (hotelId) => {
-    posthog.capture(selectedIds.has(hotelId) ? "hotel_deselected" : "hotel_selected", { hotel_id: hotelId });
-    setSelectedIds((prev) => { const next = new Set(prev); if (next.has(hotelId)) next.delete(hotelId); else next.add(hotelId); return next; });
+    const wasSelected = currentTierSet.has(hotelId);
+    posthog.capture(wasSelected ? "hotel_deselected" : "hotel_selected", { hotel_id: hotelId, tier: tierKey });
+    setSelectionsByTier((prev) => {
+      const next = { ...prev };
+      const set = new Set(next[tierKey] ?? []);
+      if (set.has(hotelId)) set.delete(hotelId); else set.add(hotelId);
+      next[tierKey] = set;
+      return next;
+    });
     setCustomQuote(null);
   };
   const handleGenerateQuote = () => {
     const pool = poolHotels ?? parallelTop;
-    const selected = visibleHotels.filter((h) => selectedIds.has(h.hotel_id));
-    const allSelected = [...new Map([...selected, ...(pool ?? []).filter((h) => selectedIds.has(h.hotel_id))].map((h) => [h.hotel_id, h])).values()];
+    const selected = visibleHotels.filter((h) => currentTierSet.has(h.hotel_id));
+    const allSelected = [...new Map([...selected, ...(pool ?? []).filter((h) => currentTierSet.has(h.hotel_id))].map((h) => [h.hotel_id, h])).values()];
     setCustomQuote(buildQuote(allSelected, t));
-    posthog.capture("quote_generated", { hotel_count: selectedIds.size });
+    posthog.capture("quote_generated", { hotel_count: currentTierSet.size });
   };
   let visibleHotels;
   if (!activeTier) { visibleHotels = parallelTop; }
   else if (poolLoading || !poolHotels) { visibleHotels = parallelTop.filter((h) => h.value_tier === activeTier); }
   else { const sorter = TIER_SORT[activeTier] ?? TIER_SORT.value; visibleHotels = [...poolHotels].sort(sorter).slice(0, TOP_N); }
-  const selCount = selectedIds.size;
+  const selCount = currentTierSet.size;
   const annotations = message.hotel_annotations ?? [];
   const annMap = {};
   for (const a of annotations) { if (a.hotel_name) annMap[a.hotel_name] = a; }
@@ -834,11 +897,14 @@ function StructuredResult({ message, sessionId, onHide, onShowAll, onHotelClick 
         </div>
       )}
       {visibleHotels.length === 0 ? (
-        <p className="desk-no-results">{"\u041D\u0435\u0442 \u0432\u0430\u0440\u0438\u0430\u043D\u0442\u043E\u0432 \u043F\u043E \u0432\u044B\u0431\u0440\u0430\u043D\u043D\u043E\u043C\u0443 \u043A\u0440\u0438\u0442\u0435\u0440\u0438\u044E."}</p>
+        <div className="desk-empty-state" role="status" aria-live="polite">
+          <p className="desk-empty-state-title">{"\u041F\u043E\u0434 \u044D\u0442\u0438 \u0444\u0438\u043B\u044C\u0442\u0440\u044B \u043D\u0438\u0447\u0435\u0433\u043E \u043D\u0435 \u043D\u0430\u0448\u043B\u043E\u0441\u044C"}</p>
+          <p className="desk-empty-state-hint">{"\u0412\u044B\u0431\u0435\u0440\u0438\u0442\u0435 \u0434\u0440\u0443\u0433\u0443\u044E \u043A\u0430\u0442\u0435\u0433\u043E\u0440\u0438\u044E \u0441\u0432\u0435\u0440\u0445\u0443."}</p>
+        </div>
       ) : (
         <div className="desk-hotel-grid">
           {visibleHotels.map((h) => (
-            <DeskHotelCard key={h.hotel_id} hotel={h} onHide={(name) => onHide(name)} selected={selectedIds.has(h.hotel_id)} onSelect={handleSelect} annotation={annMap[h.hotel_name] ?? null} onClick={onHotelClick ? () => onHotelClick(h) : undefined} />
+            <DeskHotelCard key={h.hotel_id} hotel={h} onHide={(name) => onHide(name)} selected={currentTierSet.has(h.hotel_id)} onSelect={handleSelect} annotation={annMap[h.hotel_name] ?? null} onClick={onHotelClick ? () => onHotelClick(h) : undefined} />
           ))}
         </div>
       )}
@@ -846,7 +912,7 @@ function StructuredResult({ message, sessionId, onHide, onShowAll, onHotelClick 
         <div className="desk-select-bar">
           <span className="desk-select-bar-count">{t("modal.selected")} {selCount} {selCount === 1 ? t("modal.hotel") : selCount < 5 ? t("modal.hotels_234") : t("modal.hotels_5plus")}</span>
           <button className="desk-select-bar-btn" onClick={handleGenerateQuote}>{t("quote.title")} {"\u2192"}</button>
-          <button className="desk-select-bar-clear" onClick={() => { setSelectedIds(new Set()); setCustomQuote(null); }} title={t("modal.deselect")}>{"\u2715"}</button>
+          <button className="desk-select-bar-clear" onClick={() => { setSelectionsByTier((prev) => ({ ...prev, [tierKey]: new Set() })); setCustomQuote(null); }} title={t("modal.deselect")}>{"\u2715"}</button>
         </div>
       )}
       {total > parallelTop.length && (
@@ -858,7 +924,7 @@ function StructuredResult({ message, sessionId, onHide, onShowAll, onHotelClick 
         </button>
       )}
       <DeskAnalysisPanel text={structured.ai_analysis} fromCache={structured.meta?.from_cache} totalFound={total} />
-      <DeskQuoteBox text={customQuote ?? structured.client_quote} hotels={selCount > 0 ? visibleHotels.filter((h) => selectedIds.has(h.hotel_id)) : parallelTop} annotations={annMap} />
+      <DeskQuoteBox text={customQuote ?? structured.client_quote} hotels={selCount > 0 ? visibleHotels.filter((h) => currentTierSet.has(h.hotel_id)) : parallelTop} annotations={annMap} />
     </div>
   );
 }
@@ -882,25 +948,85 @@ export default function DeskView({ sessionId, onTurnComplete }) {
   const messagesRef = useRef(messages);
   useEffect(() => { messagesRef.current = messages; }, [messages]);
 
-  // Load existing conversation history
+  // Load existing conversation history (+ restore persisted per-message filter state / pinned / hidden)
   useEffect(() => {
     apiFetch(`/api/desk/conversations/${sessionId}`)
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
         if (data?.client_info) setSessionClient(data.client_info);
         if (!data?.messages?.length) return;
+        // Restore session-level blacklist (pinned/hidden are persisted per session).
+        const deskSession = _readPersisted(sessionId, "session");
+        if (deskSession?.blacklist && Array.isArray(deskSession.blacklist)) {
+          setBlacklist(deskSession.blacklist);
+        }
         setMessages(data.messages.map((m) => {
           if (m.role === "user") return { id: m.id, type: "user", text: m.content };
           const isSearch = m.meta?.type === "search";
+          const persisted = _readPersisted(sessionId, m.id);
           return {
             id: m.id, type: "desk-ai", state: "done",
             plain_text: isSearch ? null : m.content,
             structured: isSearch ? { ai_analysis: m.content, ui_hotels: m.meta.ui_hotels ?? [], client_quote: m.meta.client_quote ?? "", meta: m.meta.meta ?? {}, available_filters: m.meta.available_filters ?? null } : null,
-            streamingAnalysis: "", filterState: EMPTY_FILTER, filterLoading: false, error: null,
+            streamingAnalysis: "",
+            filterState: persisted?.filterState ?? EMPTY_FILTER,
+            filterLoading: false,
+            error: null,
           };
         }));
       }).catch(() => {});
+  }, [sessionId]);
+
+  // Expose isSearchActive gate so the shell/sidebar can ask before switching sessions.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    (window as any).__welgoDeskIsSearchActive = () => isThinkingRef.current;
+    return () => {
+      try { delete (window as any).__welgoDeskIsSearchActive; } catch {}
+    };
   }, []);
+
+  // ── Inline banner: "switch requested while a search is active" ──
+  const [pendingSwitchId, setPendingSwitchId] = useState<string | null>(null);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const handler = (ev: any) => {
+      const targetId = ev?.detail?.sessionId;
+      if (!targetId) return;
+      if (isThinkingRef.current) {
+        // Block: show confirmation banner. Caller should wait for "welgo:switch-session-ack".
+        setPendingSwitchId(targetId);
+      } else {
+        // No search active: allow immediately.
+        window.dispatchEvent(new CustomEvent("welgo:switch-session-ack", { detail: { sessionId: targetId, confirmed: true } }));
+      }
+    };
+    window.addEventListener("welgo:switch-session-request", handler);
+    return () => window.removeEventListener("welgo:switch-session-request", handler);
+  }, []);
+
+  const confirmSwitch = useCallback(() => {
+    if (typeof window === "undefined") return;
+    const id = pendingSwitchId;
+    setPendingSwitchId(null);
+    if (id) window.dispatchEvent(new CustomEvent("welgo:switch-session-ack", { detail: { sessionId: id, confirmed: true } }));
+  }, [pendingSwitchId]);
+  const cancelSwitch = useCallback(() => {
+    if (typeof window === "undefined") return;
+    const id = pendingSwitchId;
+    setPendingSwitchId(null);
+    if (id) window.dispatchEvent(new CustomEvent("welgo:switch-session-ack", { detail: { sessionId: id, confirmed: false } }));
+  }, [pendingSwitchId]);
+
+  // Persist session-level blacklist.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const key = _storageKey(sessionId, "session");
+      const existing = _readPersisted(sessionId, "session") || {};
+      window.sessionStorage.setItem(key, JSON.stringify({ ...existing, blacklist }));
+    } catch {}
+  }, [sessionId, blacklist]);
 
   // Auto-scroll
   useEffect(() => { scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" }); }, [messages]);
@@ -910,9 +1036,13 @@ export default function DeskView({ sessionId, onTurnComplete }) {
 
   const updateMessage = useCallback((id, patch) => { setMessages((prev) => prev.map((m) => (m.id === id ? { ...m, ...patch } : m))); }, []);
 
+  // Track the last user query (for Retry).
+  const lastQueryRef = useRef<{ text: string; contextActions: any[] } | null>(null);
+
   // handleSend with SSE streaming
   const handleSend = useCallback(async (rawText, contextActions = []) => {
     if (isThinkingRef.current || !rawText.trim()) return;
+    lastQueryRef.current = { text: rawText, contextActions };
     isThinkingRef.current = true;
     setText("");
     if (textareaRef.current) textareaRef.current.style.height = "auto";
@@ -923,7 +1053,7 @@ export default function DeskView({ sessionId, onTurnComplete }) {
     setMessages((prev) => [
       ...prev.filter((m) => m.type !== "welcome"),
       ...(isExclusion ? [] : [{ id: userId, type: "user", text: rawText }]),
-      { id: aiId, type: "desk-ai", state: "thinking", userText: rawText, statusText: "", progress: 0, hotelsFound: 0, hotelNames: [], thought: null, streamingAnalysis: "", structured: null, hotel_annotations: [], previewHotels: null, previewFinal: false, previewTotal: 0, previewFilters: null, previewQuickActions: null, previewClientQuote: null, plain_text: null, clarify: null, alternatives: null, filteredHotels: null, filterState: EMPTY_FILTER, filterLoading: false, timing: null, error: null },
+      { id: aiId, type: "desk-ai", state: "thinking", userText: rawText, statusText: "", progress: 0, hotelsFound: 0, hotelNames: [], thought: null, streamingAnalysis: "", structured: null, hotel_annotations: [], previewHotels: null, previewFinal: false, previewTotal: 0, previewFilters: null, previewQuickActions: null, previewClientQuote: null, plain_text: null, clarify: null, alternatives: null, filteredHotels: null, filterState: EMPTY_FILTER, filterLoading: false, timing: null, error: null, errorKind: null },
     ]);
     setIsThinking(true);
     try {
@@ -937,11 +1067,19 @@ export default function DeskView({ sessionId, onTurnComplete }) {
         let detail = errText;
         try { detail = JSON.parse(errText).detail ?? errText; } catch {}
         const status = resp.status;
-        let msg = detail;
-        if (status === 403 && /лимит поисков исчерпан/i.test(detail)) msg = detail;
-        else if (status === 403 && /организация деактивирована/i.test(detail)) msg = detail;
-        else if (status === 503) msg = t("desk.service_unavailable");
-        updateMessage(aiId, { state: "error", error: msg });
+        let msg: string = detail;
+        let errorKind: "quota" | "timeout" | "generic" = "generic";
+        const d = String(detail || "").toLowerCase();
+        if (/quota|limit|лимит/.test(d)) {
+          msg = "\u0414\u043E\u0441\u0442\u0438\u0433\u043D\u0443\u0442 \u043B\u0438\u043C\u0438\u0442 \u043F\u043E\u0438\u0441\u043A\u043E\u0432. \u041E\u0431\u0440\u0430\u0442\u0438\u0442\u0435\u0441\u044C \u043A \u0430\u0434\u043C\u0438\u043D\u0438\u0441\u0442\u0440\u0430\u0442\u043E\u0440\u0443.";
+          errorKind = "quota";
+        } else if (status === 403 && /организация деактивирована/i.test(detail)) {
+          msg = detail;
+        } else if (status === 503 || status === 504 || /timeout|timed out/.test(d)) {
+          msg = "\u041D\u0435\u0442 \u043E\u0442\u0432\u0435\u0442\u0430 \u043E\u0442 \u0441\u0435\u0440\u0432\u0435\u0440\u0430. \u041F\u043E\u0432\u0442\u043E\u0440\u0438\u0442\u044C?";
+          errorKind = "timeout";
+        }
+        updateMessage(aiId, { state: "error", error: msg, errorKind });
         return;
       }
       const reader = resp.body.getReader();
@@ -959,7 +1097,16 @@ export default function DeskView({ sessionId, onTurnComplete }) {
           if (!raw) continue;
           let chunk;
           try { chunk = JSON.parse(raw); } catch { continue; }
-          if (chunk.type === "error") { updateMessage(aiId, { state: "error", error: chunk.text }); return; }
+          if (chunk.type === "error") {
+            const m = String(chunk.text || "");
+            const low = m.toLowerCase();
+            let errorKind: "quota" | "timeout" | "generic" = "generic";
+            let mapped = m;
+            if (/quota|limit|лимит/.test(low)) { errorKind = "quota"; mapped = "\u0414\u043E\u0441\u0442\u0438\u0433\u043D\u0443\u0442 \u043B\u0438\u043C\u0438\u0442 \u043F\u043E\u0438\u0441\u043A\u043E\u0432. \u041E\u0431\u0440\u0430\u0442\u0438\u0442\u0435\u0441\u044C \u043A \u0430\u0434\u043C\u0438\u043D\u0438\u0441\u0442\u0440\u0430\u0442\u043E\u0440\u0443."; }
+            else if (/timeout|timed out|network|\u0441\u0435\u0442\u0435\u0432/.test(low)) { errorKind = "timeout"; mapped = "\u041D\u0435\u0442 \u043E\u0442\u0432\u0435\u0442\u0430 \u043E\u0442 \u0441\u0435\u0440\u0432\u0435\u0440\u0430. \u041F\u043E\u0432\u0442\u043E\u0440\u0438\u0442\u044C?"; }
+            updateMessage(aiId, { state: "error", error: mapped, errorKind });
+            return;
+          }
           if (chunk.type === "done") return;
           if (chunk.type === "thought") { updateMessage(aiId, { thought: { intent_summary: chunk.intent_summary, travel_profile: chunk.travel_profile, confidence: chunk.confidence, missing_info: chunk.missing_info ?? [], tool_plan: chunk.tool_plan ?? [], search_hints: chunk.search_hints ?? "" } }); }
           if (chunk.type === "status") { updateMessage(aiId, { state: "thinking", statusText: chunk.text }); }
@@ -978,9 +1125,24 @@ export default function DeskView({ sessionId, onTurnComplete }) {
           if (chunk.type === "gather_client") { setPendingClientForm(chunk); }
         }
       }
-    } catch (e) { updateMessage(aiId, { state: "error", error: e.message }); }
+    } catch (e) {
+      const raw = e?.message || String(e);
+      const low = raw.toLowerCase();
+      let errorKind: "quota" | "timeout" | "generic" = "generic";
+      let mapped = raw;
+      if (/quota|limit|лимит/.test(low)) { errorKind = "quota"; mapped = "\u0414\u043E\u0441\u0442\u0438\u0433\u043D\u0443\u0442 \u043B\u0438\u043C\u0438\u0442 \u043F\u043E\u0438\u0441\u043A\u043E\u0432. \u041E\u0431\u0440\u0430\u0442\u0438\u0442\u0435\u0441\u044C \u043A \u0430\u0434\u043C\u0438\u043D\u0438\u0441\u0442\u0440\u0430\u0442\u043E\u0440\u0443."; }
+      else if (/timeout|timed out|network|fetch|failed to fetch|\u0441\u0435\u0442\u0435\u0432/.test(low)) { errorKind = "timeout"; mapped = "\u041D\u0435\u0442 \u043E\u0442\u0432\u0435\u0442\u0430 \u043E\u0442 \u0441\u0435\u0440\u0432\u0435\u0440\u0430. \u041F\u043E\u0432\u0442\u043E\u0440\u0438\u0442\u044C?"; }
+      updateMessage(aiId, { state: "error", error: mapped, errorKind });
+    }
     finally { isThinkingRef.current = false; setIsThinking(false); onTurnComplete?.(); }
   }, [sessionId, blacklist, clientInfo, updateMessage, onTurnComplete]);
+
+  // Retry helper: re-send the last user query.
+  const handleRetry = useCallback(() => {
+    const last = lastQueryRef.current;
+    if (!last) return;
+    handleSend(last.text, last.contextActions ?? []);
+  }, [handleSend]);
 
   const handleHide = useCallback((hotelName) => {
     posthog.capture("hotel_hidden", { hotel_name: hotelName });
@@ -989,8 +1151,29 @@ export default function DeskView({ sessionId, onTurnComplete }) {
     handleSend(`\u0421\u043A\u0440\u044B\u0442\u044C: ${hotelName}`, [{ action: "exclude_hotel", hotel_name: hotelName, reason: "excluded by agent" }]);
   }, [blacklist, handleSend]);
 
+  // Debounced per-message filter persistence (one timer per msgId).
+  const filterPersistTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const persistFilterState = useCallback((msgId: string | number, filterVal: any) => {
+    if (typeof window === "undefined") return;
+    const key = String(msgId);
+    const timers = filterPersistTimersRef.current;
+    if (timers[key]) clearTimeout(timers[key]);
+    timers[key] = setTimeout(() => {
+      try {
+        const storageKey = _storageKey(sessionId, msgId);
+        const existing = _readPersisted(sessionId, msgId) || {};
+        window.sessionStorage.setItem(storageKey, JSON.stringify({ ...existing, filterState: filterVal }));
+      } catch {}
+      delete timers[key];
+    }, 250);
+  }, [sessionId]);
+  useEffect(() => () => {
+    Object.values(filterPersistTimersRef.current).forEach((t) => clearTimeout(t));
+  }, []);
+
   const handleFilterChange = useCallback(async (msgId, filterVal, commit) => {
     updateMessage(msgId, { filterState: filterVal });
+    persistFilterState(msgId, filterVal);
     if (!commit) return;
     posthog.capture("filter_applied", { price_min: filterVal.priceMin, price_max: filterVal.priceMax, stars_min: filterVal.starsMin, meal_plan: filterVal.mealPlan, operators: filterVal.operators });
     updateMessage(msgId, { filterLoading: true });
@@ -1042,14 +1225,43 @@ export default function DeskView({ sessionId, onTurnComplete }) {
   const handleKeyDown = useCallback((e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); submit(); } }, [submit]);
   const showWelcome = messages.length === 0;
 
+  // Reset filters / expand budget / change dates — used by empty-state in DeskAllHotelsModal.
+  const handleResetFilters = useCallback((msgId) => {
+    handleFilterChange(msgId, EMPTY_FILTER, true);
+  }, [handleFilterChange]);
+  const handleExpandBudget = useCallback((msgId, filterVal) => {
+    const currentMax = filterVal?.priceMax;
+    if (currentMax == null) return;
+    const next = { ...filterVal, priceMax: Math.round(currentMax * 1.3) };
+    handleFilterChange(msgId, next, true);
+  }, [handleFilterChange]);
+  const handleChangeDates = useCallback(() => {
+    setAllHotelsOpen(false);
+    // Seed the input with a Russian hint prompting the agent to pick new dates.
+    setText("\u0418\u0437\u043C\u0435\u043D\u0438\u0442\u044C \u0434\u0430\u0442\u044B \u043F\u043E\u0435\u0437\u0434\u043A\u0438: ");
+    setTimeout(() => textareaRef.current?.focus(), 0);
+  }, []);
+
   return (
     <div className="desk-shell">
+      {pendingSwitchId && (
+        <div className="desk-switch-banner" role="alertdialog" aria-live="polite" aria-label={"\u041F\u043E\u0434\u0442\u0432\u0435\u0440\u0434\u0438\u0442\u0435 \u043F\u0435\u0440\u0435\u043A\u043B\u044E\u0447\u0435\u043D\u0438\u0435"}>
+          <span className="desk-switch-banner-text">{"\u041F\u043E\u0438\u0441\u043A \u0435\u0449\u0451 \u0438\u0434\u0451\u0442 \u2014 \u043F\u0435\u0440\u0435\u043A\u043B\u044E\u0447\u0438\u0442\u044C \u0441\u0435\u0439\u0447\u0430\u0441 \u043F\u0440\u0435\u0440\u0432\u0451\u0442 \u0435\u0433\u043E."}</span>
+          <div className="desk-switch-banner-actions">
+            <button type="button" className="desk-switch-banner-btn desk-switch-banner-btn--primary" onClick={confirmSwitch}>{"\u041F\u0435\u0440\u0435\u043A\u043B\u044E\u0447\u0438\u0442\u044C"}</button>
+            <button type="button" className="desk-switch-banner-btn" onClick={cancelSwitch}>{"\u041E\u0442\u043C\u0435\u043D\u0430"}</button>
+          </div>
+        </div>
+      )}
       {allHotelsOpen && (() => {
         const last = [...messages].reverse().find((m) => m.structured);
         return (<DeskAllHotelsModal sessionId={sessionId} totalFound={last?.structured?.meta?.total_options_found ?? 0}
           filters={last?.structured?.available_filters ?? null} filterState={last?.filterState ?? EMPTY_FILTER}
           filterLoading={last?.filterLoading ?? false} filteredHotels={last?.filteredHotels ?? null}
           onFilterChange={(val, commit) => last && handleFilterChange(last.id, val, commit)}
+          onResetFilters={() => last && handleResetFilters(last.id)}
+          onExpandBudget={() => last && handleExpandBudget(last.id, last.filterState ?? EMPTY_FILTER)}
+          onChangeDates={handleChangeDates}
           onClose={() => setAllHotelsOpen(false)} onSummarize={handleSummarize} onSimilar={handleSimilar} onHotelClick={(h) => setDetailHotel(h)} />);
       })()}
       {detailHotel && (
@@ -1088,7 +1300,24 @@ export default function DeskView({ sessionId, onTurnComplete }) {
           if (m.state === "previewing" || m.state === "analyzing") return (<div key={m.id}>{m.thought && <ThoughtBubble thought={m.thought} />}{m.state === "previewing" && !m.previewFinal && <ThinkingBubble statusText={m.statusText} progress={m.progress} hotelsFound={m.hotelsFound} hotelNames={m.hotelNames} />}{m.previewHotels && (<div className="desk-result-wrap"><div className="desk-avatar" aria-label="Welgo Desk AI">D</div><PreviewResult message={m} onHide={handleHide} onAnalyze={() => handleSend("Анализировать", [{ action: "analyze" }])} progress={m.progress ?? 0} sessionId={sessionId} onHotelClick={(h) => setDetailHotel(h)} /></div>)}{m.streamingAnalysis && <StreamingAnalysis text={m.streamingAnalysis} />}</div>);
           if (m.state === "clarify") return (<div key={m.id}>{m.thought && <ThoughtBubble thought={m.thought} />}<ClarifyBubble message={m} onSearch={handleSend} /></div>);
           if (m.state === "alternatives") return (<div key={m.id}>{m.thought && <ThoughtBubble thought={m.thought} />}<AlternativesBubble message={m} onSearch={handleSend} /></div>);
-          if (m.state === "error") return (<div key={m.id} className="desk-error" role="alert">{"\u041E\u0448\u0438\u0431\u043A\u0430: "}{m.error}</div>);
+          if (m.state === "error") {
+            const canRetry = m.errorKind !== "quota" && !!lastQueryRef.current;
+            return (
+              <div key={m.id} className="desk-error" role="alert" aria-live="polite">
+                <div className="desk-error-row">
+                  <span className="desk-error-icon" aria-hidden="true">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                  </span>
+                  <span className="desk-error-text">{m.error}</span>
+                </div>
+                {canRetry && (
+                  <button type="button" className="desk-error-retry" onClick={handleRetry} disabled={isThinking}>
+                    {"\u041F\u043E\u0432\u0442\u043E\u0440\u0438\u0442\u044C"}
+                  </button>
+                )}
+              </div>
+            );
+          }
           if (m.plain_text) return <PlainBubble key={m.id} text={m.plain_text} />;
           if (m.structured) {
             return (<div key={m.id}>{m.thought && <ThoughtBubble thought={m.thought} />}

@@ -71,6 +71,8 @@ export default function DeskQuoteBox({ text, hotels = [], annotations = {} }: { 
   const [copied, setCopied] = useState(false);
   const [tab, setTab] = useState<"visual" | "text">(hotels.length > 0 ? "visual" : "text");
   const cardsRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const savedSelectionRef = useRef<{ start: number; end: number } | null>(null);
 
   useEffect(() => {
     setEditedText(text);
@@ -79,6 +81,31 @@ export default function DeskQuoteBox({ text, hotels = [], annotations = {} }: { 
   useEffect(() => {
     if (hotels.length > 0) setTab("visual");
   }, [hotels.length]);
+
+  useEffect(() => {
+    if (tab !== "text") return;
+    const ta = textareaRef.current;
+    if (!ta) return;
+    const len = ta.value.length;
+    const saved = savedSelectionRef.current;
+    const start = saved ? Math.min(saved.start, len) : len;
+    const end = saved ? Math.min(saved.end, len) : len;
+    ta.focus();
+    try {
+      ta.setSelectionRange(start, end);
+    } catch {
+      // ignore if the browser refuses the range (e.g. unsupported input type)
+    }
+  }, [tab]);
+
+  const handleSelectionSave = () => {
+    const ta = textareaRef.current;
+    if (!ta) return;
+    savedSelectionRef.current = {
+      start: ta.selectionStart ?? 0,
+      end: ta.selectionEnd ?? 0,
+    };
+  };
 
   if (!text && !hotels.length) return null;
 
@@ -141,10 +168,14 @@ export default function DeskQuoteBox({ text, hotels = [], annotations = {} }: { 
       )}
       {tab === "text" && (
         <textarea
+          ref={textareaRef}
           className="dqb-textarea"
           value={editedText}
           rows={rows}
           onChange={(e) => setEditedText(e.target.value)}
+          onSelect={handleSelectionSave}
+          onKeyUp={handleSelectionSave}
+          onMouseUp={handleSelectionSave}
           spellCheck={false}
           aria-label={t("quote.edit_label")}
         />

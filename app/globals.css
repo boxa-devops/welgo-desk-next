@@ -1,62 +1,227 @@
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&display=swap');
+@import url('https://rsms.me/inter/inter.css');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
-  /* Brand */
-  --brand:        #059669;   /* emerald-600 — dark enough for white text (5.5:1) */
-  --brand-dark:   #047857;   /* emerald-700 */
-  --brand-light:  #ecfdf5;   /* emerald-50 */
-  --brand-mid:    #a7f3d0;   /* emerald-200 */
+  /* ───────────── Brand ───────────── */
+  --brand:        #0E9F6E;   /* softened emerald */
+  --brand-dark:   #0B8A5E;
+  --brand-light:  #ECFDF5;
+  --brand-mid:    #A7F3D0;
   --brand-text:   #ffffff;
-  --accent:       #F97316;   /* CTA orange */
-  --accent-dark:  #EA6F0D;
+  --accent:       #F97066;   /* warm coral — softer than pure orange */
+  --accent-dark:  #E85A50;
 
-  /* Surface */
-  --surface:      #F8FAFC;
-  --surface-2:    #F1F5F9;
+  /* ───────────── Surface (warm neutrals) ───────────── */
+  --surface:      #FAFAF9;   /* stone-50 — warmer than cool gray */
+  --surface-2:    #F5F5F4;   /* stone-100 */
   --card:         #FFFFFF;
-  --border:       #E2E8F0;
-  --border-focus: #6ee7b7;   /* emerald-300 */
+  --border:       #EBEAE6;   /* soft warm border */
+  --border-focus: #86EFAC;
 
-  /* Text */
-  --text:         #1E293B;
-  --text-2:       #475569;
-  --muted:        #94A3B8;
+  /* ───────────── Text (warm, high-contrast) ───────────── */
+  --text:         #1A1A1A;   /* near-black, not pure */
+  --text-2:       #525252;   /* warm gray-600 */
+  --muted:        #A3A3A3;   /* warm gray-400 */
 
-  /* Semantic */
-  --green:        #16A34A;
-  --green-light:  #DCFCE7;
-  --amber:        #D97706;
-  --red:          #DC2626;
+  /* ───────────── Semantic ───────────── */
+  --green:        #10B981;
+  --green-light:  #D1FAE5;
+  --amber:        #F59E0B;
+  --red:          #EF4444;
   --red-light:    #FEF2F2;
   --star:         #F59E0B;
 
-  /* Tokens */
-  --radius-sm:    6px;
-  --radius:       10px;
-  --radius-lg:    14px;
+  /* ───────────── Radii (softer, more rounded) ───────────── */
+  --radius-sm:    6px;       /* inputs */
+  --radius:       8px;       /* buttons */
+  --radius-lg:    12px;      /* cards */
+  --radius-xl:    16px;      /* modals, large surfaces */
   --radius-pill:  999px;
-  --shadow-sm:    0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04);
-  --shadow:       0 4px 12px rgba(0,0,0,.08), 0 1px 3px rgba(0,0,0,.04);
-  --shadow-lg:    0 8px 32px rgba(0,0,0,.12), 0 2px 8px rgba(0,0,0,.06);
 
-  --transition: 150ms ease;
+  /* ───────────── Shadows (layered, subtle) ───────────── */
+  --shadow-sm:    0 1px 2px rgba(17,17,17,.04), 0 1px 3px rgba(17,17,17,.04);
+  --shadow:       0 1px 3px rgba(17,17,17,.04), 0 4px 12px rgba(17,17,17,.06);
+  --shadow-lg:    0 2px 8px rgba(17,17,17,.05), 0 12px 32px rgba(17,17,17,.08);
+  --shadow-xl:    0 4px 16px rgba(17,17,17,.06), 0 24px 64px rgba(17,17,17,.10);
+  --shadow-focus: 0 0 0 4px rgba(14,159,110,.12);
+
+  /* ───────────── Motion ───────────── */
+  --transition:       180ms cubic-bezier(.4,0,.2,1);
+  --transition-fast:  120ms cubic-bezier(.4,0,.2,1);
+  --transition-slow:  240ms cubic-bezier(.4,0,.2,1);
+
+  /* ───────────── Spacing (8px grid) ───────────── */
+  --space-1:  4px;
+  --space-2:  8px;
+  --space-3:  12px;
+  --space-4:  16px;
+  --space-5:  24px;
+  --space-6:  32px;
+  --space-7:  48px;
+  --space-8:  64px;
+
+  /* ───────────── Typography scale (1.25 — major third) ───────────── */
+  --text-xs:   12px;
+  --text-sm:   13px;
+  --text-base: 15px;    /* base */
+  --text-md:   16px;
+  --text-lg:   19px;    /* 15 × 1.25 */
+  --text-xl:   24px;    /* 19 × 1.25 */
+  --text-2xl:  30px;
+  --text-3xl:  38px;
 }
 
 html, body, #app {
   height: 100%;
-  font-family: 'Plus Jakarta Sans', 'Inter', system-ui, sans-serif;
+  font-family: 'Inter', 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont,
+               'SF Pro Display', 'Segoe UI', system-ui, sans-serif;
+  font-size: var(--text-base);
+  font-weight: 400;
+  line-height: 1.55;
+  letter-spacing: 0;
   background: var(--surface);
   color: var(--text);
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  font-feature-settings: 'ss01', 'cv11', 'cv02', 'cv03', 'cv04';
 }
 
-button { font-family: inherit; }
+/* Prefer Inter's variable axes when supported */
+@supports (font-variation-settings: normal) {
+  html, body, #app {
+    font-family: 'Inter var', 'Inter', 'Plus Jakarta Sans', system-ui, sans-serif;
+  }
+}
+
+/* Typography scale — headings tightened for modern feel */
+h1, h2, h3, h4, h5, h6 {
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.015em;
+  color: var(--text);
+}
+h1 { font-size: var(--text-3xl); letter-spacing: -0.02em; font-weight: 700; }
+h2 { font-size: var(--text-2xl); letter-spacing: -0.02em; }
+h3 { font-size: var(--text-xl);  letter-spacing: -0.015em; }
+h4 { font-size: var(--text-lg);  letter-spacing: -0.01em; }
+h5 { font-size: var(--text-md); }
+h6 { font-size: var(--text-base); }
+
+p { line-height: 1.6; }
+
+small { font-size: var(--text-sm); color: var(--text-2); }
+
+/* Form elements inherit the refined type */
+button, input, select, textarea {
+  font-family: inherit;
+  font-size: inherit;
+  letter-spacing: 0;
+  color: inherit;
+}
+
+button {
+  cursor: pointer;
+  border-radius: var(--radius);
+  transition:
+    background-color var(--transition),
+    box-shadow var(--transition),
+    transform var(--transition),
+    border-color var(--transition),
+    color var(--transition);
+}
+button:active { transform: translateY(0.5px); }
+
+input, textarea, select {
+  border-radius: var(--radius-sm);
+  transition: border-color var(--transition), box-shadow var(--transition), background-color var(--transition);
+}
+input:focus-visible, textarea:focus-visible, select:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus);
+  border-color: var(--border-focus);
+}
+
+/* Softer, accessible focus for buttons and links */
+:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus);
+}
+
+/* Softer selection colour */
+::selection {
+  background: var(--brand-light);
+  color: var(--brand-dark);
+}
+
+/* Scrollbars — slimmer and more refined */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #D6D3D1 transparent;
+}
+*::-webkit-scrollbar { width: 10px; height: 10px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb {
+  background: #D6D3D1;
+  border-radius: var(--radius-pill);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+*::-webkit-scrollbar-thumb:hover { background: #A8A29E; background-clip: padding-box; border: 2px solid transparent; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+/* ───────────── Async-state tokens ─────────────
+   Unified idiom for loading / saving / saved / error states.
+   Use with the .state-pip utility for inline save/error badges. */
+:root {
+  --state-idle-bg: transparent;
+  --state-loading-bg: rgba(14,159,110,.08);
+  --state-saving-bg: rgba(14,159,110,.08);
+  --state-saved-bg: rgba(16,185,129,.12);
+  --state-saved-fg: #047857;
+  --state-error-bg: rgba(239,68,68,.08);
+  --state-error-fg: #B91C1C;
+  --state-fade: 180ms cubic-bezier(.4,0,.2,1);
+}
+
+.state-pip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  line-height: 1.2;
+  background: var(--state-saved-bg);
+  color: var(--state-saved-fg);
+  transition: opacity var(--state-fade), transform var(--state-fade);
+  white-space: nowrap;
+}
+
+.state-pip--error {
+  background: var(--state-error-bg);
+  color: var(--state-error-fg);
+}
+
+.state-pip--enter {
+  opacity: 0;
+  transform: translateY(-2px);
+}
+
+.state-pip--visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.state-pip--leave {
+  opacity: 0;
 }

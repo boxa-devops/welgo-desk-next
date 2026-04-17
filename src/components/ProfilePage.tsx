@@ -1,7 +1,7 @@
 // src/components/ProfilePage.tsx
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useAuth } from "@/lib/AuthContext";
 import { useI18n } from "@/lib/i18n";
 import { apiFetch } from "@/lib/api";
@@ -108,6 +108,15 @@ function LanguageSelector() {
   const { t, lang, setLang } = useI18n();
   const { profile } = useAuth();
   const [saving, setSaving] = useState(false);
+  const [savedKey, setSavedKey] = useState<string | null>(null);
+  const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
+    };
+  }, []);
+
   const handleChange = useCallback(async (newLang: string) => {
     if (newLang === lang) return;
     setSaving(true);
@@ -120,11 +129,14 @@ function LanguageSelector() {
       if (r.ok) {
         setLang(newLang);
         if (profile) profile.language = newLang;
+        if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
+        setSavedKey("language");
+        savedTimerRef.current = setTimeout(() => setSavedKey(null), 1500);
       }
     } finally {
       setSaving(false);
     }
-  }, [lang, profile]);
+  }, [lang, profile, setLang]);
   return (
     <div className="pp-lang-selector">
       <button
@@ -141,6 +153,9 @@ function LanguageSelector() {
       >
         {t("profile.language_uz")}
       </button>
+      {savedKey === "language" && (
+        <span className="pp-saved-pip" aria-live="polite">✓ Сохранено</span>
+      )}
     </div>
   );
 }

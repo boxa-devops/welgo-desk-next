@@ -18,6 +18,19 @@
 .pcard--clickable { cursor: pointer; }
 .pcard--clickable:active { transform: translateY(0) scale(0.98); }
 
+/* ── Selected / pinned state ── */
+.pcard--selected {
+  background: var(--brand-light, #ECFDF5);
+  box-shadow: inset 0 0 0 2px var(--brand, #0E9F6E);
+  border-color: transparent;
+  transition: box-shadow var(--transition, 180ms cubic-bezier(.4,0,.2,1)),
+              background var(--transition, 180ms cubic-bezier(.4,0,.2,1));
+}
+
+.pcard--selected:hover {
+  box-shadow: inset 0 0 0 2px var(--brand, #0E9F6E), 0 4px 16px rgba(0,0,0,0.08);
+}
+
 @keyframes pcard-appear {
   from {
     opacity: 0;

@@ -26,10 +26,68 @@
   width: 100%;
   max-width: 880px;
   max-height: 90vh;
+  max-height: 90dvh;
   display: flex;
   flex-direction: column;
   overflow: hidden;
   animation: tpb-slide-up 0.18s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ── Dirty-state confirmation strip ── */
+.tpb-confirm-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 16px;
+  background: #FFFBEB;
+  border-bottom: 1px solid #FDE68A;
+  flex-shrink: 0;
+  animation: tpb-slide-down var(--transition);
+}
+
+@keyframes tpb-slide-down {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.tpb-confirm-text {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #92400E;
+}
+
+.tpb-confirm-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.tpb-confirm-btn {
+  padding: 6px 12px;
+  min-height: 32px;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--card);
+  color: var(--text);
+  font-size: 12.5px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background var(--transition), border-color var(--transition), color var(--transition);
+}
+
+.tpb-confirm-btn:hover { background: var(--surface-2); }
+
+.tpb-confirm-btn--danger {
+  border-color: #DC2626;
+  color: #DC2626;
+}
+
+.tpb-confirm-btn--danger:hover {
+  background: #FEE2E2;
+  color: #B91C1C;
+  border-color: #B91C1C;
 }
 
 @keyframes tpb-slide-up {
@@ -84,8 +142,10 @@
 }
 
 .tpb-close-btn {
-  width: 32px;
-  height: 32px;
+  width: 40px;
+  height: 40px;
+  min-width: 40px;
+  min-height: 40px;
   border: none;
   background: transparent;
   border-radius: var(--radius-sm);
@@ -245,6 +305,8 @@
 .tpb-counter-btn {
   width: 36px;
   height: 36px;
+  min-width: 36px;
+  min-height: 36px;
   border: none;
   background: transparent;
   color: var(--text-2);
@@ -525,3 +587,32 @@
 
 .tpb-send-btn:hover:not(:disabled) { background: var(--brand-dark); }
 .tpb-send-btn:disabled { opacity: 0.4; cursor: default; }
+
+/* ── Responsive: stack preview below form on narrow viewports ── */
+@media (max-width: 899.98px) {
+  .tpb-overlay {
+    padding: 12px;
+  }
+
+  .tpb-body {
+    flex-direction: column;
+    overflow-y: auto;
+    overflow-x: hidden;
+  }
+
+  .tpb-fields {
+    flex: 0 0 auto;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+    overflow-y: visible;
+  }
+
+  .tpb-preview-col {
+    width: 100%;
+    flex: 0 0 auto;
+  }
+
+  .tpb-preview-area {
+    min-height: 140px;
+  }
+}

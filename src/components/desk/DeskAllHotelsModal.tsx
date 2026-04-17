@@ -95,6 +95,7 @@ function HotelCard({ hotel, selected, onToggle, onSimilar, onDetail = null }) {
 export default function DeskAllHotelsModal({
   sessionId, totalFound, onClose, onSummarize, onSimilar, onHotelClick = null,
   filters, filterState, filterLoading, filteredHotels, onFilterChange,
+  onResetFilters, onExpandBudget, onChangeDates,
 }) {
   const [hotels, setHotels] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -180,9 +181,36 @@ export default function DeskAllHotelsModal({
         {showCompare && selected.size >= 2 && (<CompareDrawer hotels={selectedHotels} />)}
         <div className="dahm-grid-wrap">
           {loading ? (
-            <div className="dahm-empty">Загружаем варианты…</div>
+            <div className="dahm-empty" role="status" aria-live="polite">Загружаем варианты…</div>
           ) : filtered.length === 0 ? (
-            <div className="dahm-empty">Ничего не найдено. Попробуйте изменить фильтры.</div>
+            <div className="dahm-empty dahm-empty-state" role="status" aria-live="polite">
+              <p className="dahm-empty-title">Под эти фильтры ничего не нашлось</p>
+              <div className="dahm-empty-actions">
+                <button
+                  type="button"
+                  className="dahm-empty-btn"
+                  onClick={() => { setSearch(''); onResetFilters?.(); }}
+                >
+                  Сбросить фильтры
+                </button>
+                <button
+                  type="button"
+                  className="dahm-empty-btn"
+                  onClick={() => onExpandBudget?.()}
+                  disabled={!onExpandBudget || filterState?.priceMax == null}
+                  title={filterState?.priceMax == null ? 'Верхняя граница бюджета не задана' : 'Увеличить верхнюю границу бюджета в 1,3 раза'}
+                >
+                  Расширить бюджет ×1.3
+                </button>
+                <button
+                  type="button"
+                  className="dahm-empty-btn"
+                  onClick={() => onChangeDates?.()}
+                >
+                  Изменить даты
+                </button>
+              </div>
+            </div>
           ) : (
             <div className="dahm-grid" key={gridKeyRef.current}>
               {paged.map(hotel => (
@@ -206,16 +234,29 @@ export default function DeskAllHotelsModal({
             <span className="dahm-selection-label">Отметьте отели для анализа</span>
           )}
           {selected.size >= 2 && (
-            <button className="dahm-action-btn secondary" onClick={() => setShowCompare(v => !v)}>
+            <button
+              className="dahm-action-btn secondary"
+              onClick={() => setShowCompare(v => !v)}
+              title={showCompare ? 'Скрыть таблицу сравнения' : 'Сравнить выбранные'}
+            >
               {showCompare ? 'Скрыть таблицу' : 'Сравнить'}
             </button>
           )}
-          <button className="dahm-action-btn primary" disabled={selected.size === 0} onClick={() => handleSummarize('summarize')}>
-            ОБОБЩИТЬ
+          <button
+            className="dahm-action-btn primary"
+            disabled={selected.size === 0}
+            onClick={() => handleSummarize('summarize')}
+            title="Обобщить выбранные"
+          >
+            Обобщить
           </button>
           {selected.size >= 2 && (
-            <button className="dahm-action-btn secondary" onClick={() => handleSummarize('compare')}>
-              СРАВНИТЬ АНАЛИЗ
+            <button
+              className="dahm-action-btn secondary"
+              onClick={() => handleSummarize('compare')}
+              title="Сравнить выбранные"
+            >
+              Сравнить
             </button>
           )}
         </div>

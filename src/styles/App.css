@@ -32,6 +32,78 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  position: relative;
+  outline: none;
+}
+
+/* ── Skip to content link (keyboard accessibility) ── */
+.skip-link {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  padding: 8px 14px;
+  background: var(--brand);
+  color: var(--brand-text, #fff);
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow, 0 4px 14px rgba(0, 0, 0, 0.2));
+  text-decoration: none;
+  z-index: 100;
+  /* Visually hidden until focused (sr-only / clip pattern) */
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  height: 1px;
+  width: 1px;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.skip-link:focus,
+.skip-link:focus-visible {
+  clip: auto;
+  clip-path: none;
+  height: auto;
+  width: auto;
+  overflow: visible;
+  white-space: normal;
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+
+/* ── Hamburger (mobile only) ── */
+.app-hamburger {
+  display: none;
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  width: 40px;
+  height: 40px;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface, #fff);
+  color: var(--text, #111);
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: var(--radius);
+  cursor: pointer;
+  z-index: 30;
+  box-shadow: var(--shadow, 0 2px 8px rgba(0, 0, 0, 0.08));
+  transition: background var(--transition, 150ms ease), border-color var(--transition, 150ms ease);
+}
+
+.app-hamburger:hover {
+  background: var(--surface-hover, #f3f4f6);
+}
+
+.app-hamburger:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+
+@media (max-width: 767.98px) {
+  .app-hamburger {
+    display: flex;
+  }
 }
 
 /* Each DeskView is always mounted; only the active one is visible */

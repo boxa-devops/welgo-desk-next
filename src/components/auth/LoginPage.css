@@ -33,7 +33,7 @@
   background: var(--brand);
   color: var(--brand-text);
   font-size: 26px;
-  font-weight: 800;
+  font-weight: 700;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -42,7 +42,7 @@
 
 .login-title {
   font-size: 22px;
-  font-weight: 800;
+  font-weight: 700;
   color: var(--text);
   letter-spacing: -0.3px;
 }

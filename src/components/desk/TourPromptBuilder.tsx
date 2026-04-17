@@ -1,7 +1,7 @@
 // src/components/desk/TourPromptBuilder.tsx
 "use client";
 
-import { useState, useCallback, useEffect, useMemo } from 'react';
+import { useState, useCallback, useEffect, useMemo, useRef, useId } from 'react';
 import { apiFetch } from '@/lib/api';
 import './TourPromptBuilder.css';
 
@@ -148,10 +148,20 @@ export default function TourPromptBuilder({ onSend, onClose }: { onSend?: (text:
   const [strategy, setStrategy] = useState('');
   const [polishing, setPolishing] = useState(false);
   const [edited, setEdited] = useState(false);
+  const [isDirty, setIsDirty] = useState(false);
+  const [confirmClose, setConfirmClose] = useState(false);
+
+  const titleId = useId();
+  const isDirtyRef = useRef(isDirty);
+  const confirmRef = useRef(confirmClose);
+
+  useEffect(() => { isDirtyRef.current = isDirty; }, [isDirty]);
+  useEffect(() => { confirmRef.current = confirmClose; }, [confirmClose]);
 
   const set = useCallback((key: keyof FormState, val: FormState[keyof FormState]) => {
     setForm(prev => ({ ...prev, [key]: val }));
     setEdited(false);
+    setIsDirty(true);
   }, []);
 
   const toggleVibe = useCallback((v: string) => {
@@ -164,6 +174,7 @@ export default function TourPromptBuilder({ onSend, onClose }: { onSend?: (text:
       return { ...prev, vibes, extraChips };
     });
     setEdited(false);
+    setIsDirty(true);
   }, []);
 
   const toggleChip = useCallback((chip: string) => {
@@ -174,6 +185,7 @@ export default function TourPromptBuilder({ onSend, onClose }: { onSend?: (text:
       return { ...prev, extraChips };
     });
     setEdited(false);
+    setIsDirty(true);
   }, []);
 
   const contextChips = useMemo(() => getChips(form.vibes), [form.vibes]);
@@ -225,6 +237,7 @@ export default function TourPromptBuilder({ onSend, onClose }: { onSend?: (text:
         const data = await resp.json();
         setPreview(data.brief);
         setEdited(true);
+        setIsDirty(true);
       }
     } finally {
       setPolishing(false);
@@ -238,9 +251,63 @@ export default function TourPromptBuilder({ onSend, onClose }: { onSend?: (text:
     onClose?.();
   };
 
+  const requestClose = useCallback(() => {
+    if (!isDirtyRef.current) {
+      onClose?.();
+      return;
+    }
+    if (confirmRef.current) {
+      onClose?.();
+      return;
+    }
+    setConfirmClose(true);
+  }, [onClose]);
+
+  const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (e.target !== e.currentTarget) return;
+    requestClose();
+  };
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      e.stopPropagation();
+      requestClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [requestClose]);
+
   return (
-    <div className="tpb-overlay" onClick={e => e.target === e.currentTarget && onClose?.()}>
-      <div className="tpb-modal" role="dialog" aria-modal="true" aria-label="Конструктор запроса">
+    <div className="tpb-overlay" onClick={handleBackdropClick}>
+      <div
+        className="tpb-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+      >
+        {confirmClose && (
+          <div className="tpb-confirm-strip" role="alert">
+            <span className="tpb-confirm-text">Закрыть и потерять черновик?</span>
+            <div className="tpb-confirm-actions">
+              <button
+                type="button"
+                className="tpb-confirm-btn tpb-confirm-btn--danger"
+                onClick={() => { setConfirmClose(false); onClose?.(); }}
+              >
+                Закрыть
+              </button>
+              <button
+                type="button"
+                className="tpb-confirm-btn"
+                onClick={() => setConfirmClose(false)}
+              >
+                Отмена
+              </button>
+            </div>
+          </div>
+        )}
+
         <div className="tpb-header">
           <div className="tpb-header-left">
             <div className="tpb-header-icon" aria-hidden="true">
@@ -251,11 +318,11 @@ export default function TourPromptBuilder({ onSend, onClose }: { onSend?: (text:
               </svg>
             </div>
             <div>
-              <div className="tpb-header-title">Конструктор запроса</div>
+              <div className="tpb-header-title" id={titleId}>Конструктор запроса</div>
               <div className="tpb-header-sub">Соберите параметры — MIRA составит подборку</div>
             </div>
           </div>
-          <button className="tpb-close-btn" onClick={onClose} type="button" aria-label="Закрыть">
+          <button className="tpb-close-btn" onClick={requestClose} type="button" aria-label="Закрыть">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
               <path d="M18 6L6 18M6 6l12 12"/>
             </svg>
@@ -358,11 +425,16 @@ export default function TourPromptBuilder({ onSend, onClose }: { onSend?: (text:
           <div className="tpb-preview-col">
             <div className="tpb-preview-header">
               <span className="tpb-preview-title">Черновик запроса</span>
-              {preview && (<span className="tpb-preview-badge">Обновляется в реальном времени</span>)}
+              {preview && (<span className="tpb-preview-badge">Обновляется по мере ввода</span>)}
             </div>
-            <textarea className="tpb-preview-area" value={preview}
-              onChange={e => { setPreview((e.target as HTMLTextAreaElement).value); setEdited(true); }}
-              placeholder="Запрос формируется автоматически по мере выбора параметров…" rows={8} />
+            <textarea
+              className="tpb-preview-area"
+              aria-label="Черновик запроса"
+              value={preview}
+              onChange={e => { setPreview((e.target as HTMLTextAreaElement).value); setEdited(true); setIsDirty(true); }}
+              placeholder="Запрос формируется автоматически по мере выбора параметров…"
+              rows={8}
+            />
 
             {expertHints.length > 0 && (
               <div className="tpb-expert-hints">
@@ -397,7 +469,7 @@ export default function TourPromptBuilder({ onSend, onClose }: { onSend?: (text:
                       <path d="M12 2l1.09 3.26L16.18 6l-2.45 2.44L14.36 12 12 10.28 9.64 12l.63-3.56L7.82 6l3.09-.74z"/>
                       <path d="M5 20l2-2m10 2l-2-2"/>
                     </svg>
-                    AI Polish
+                    Улучшить
                   </>
                 )}
               </button>

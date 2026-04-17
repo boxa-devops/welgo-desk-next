@@ -52,6 +52,12 @@ const TrashIcon = () => (
   </svg>
 );
 
+const CloseIcon = () => (
+  <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+    <path d="M3 3l10 10M13 3L3 13"/>
+  </svg>
+);
+
 interface Conversation {
   id: string;
   title: string;
@@ -78,14 +84,19 @@ interface SidebarProps {
   profile: Profile | null;
   activeView: string;
   onViewChange: (view: string) => void;
+  isSidebarOpen?: boolean;
+  setIsSidebarOpen?: (open: boolean) => void;
+  onOpenSearch?: () => void;
 }
 
-export default function Sidebar({ conversations, activeId, onNewChat, onSelect, onRename, onDelete, profile, activeView, onViewChange }: SidebarProps) {
+export default function Sidebar({ conversations, activeId, onNewChat, onSelect, onRename, onDelete, profile, activeView, onViewChange, isSidebarOpen = false, setIsSidebarOpen, onOpenSearch }: SidebarProps) {
   const { t } = useI18n();
   const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
   const editInputRef = useRef<HTMLInputElement>(null);
+  const asideRef = useRef<HTMLElement>(null);
+  const previouslyFocusedRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     if (editingId && editInputRef.current) {
@@ -93,6 +104,60 @@ export default function Sidebar({ conversations, activeId, onNewChat, onSelect, 
       editInputRef.current.select();
     }
   }, [editingId]);
+
+  // Close drawer with Escape, trap focus inside, restore focus on close (mobile only).
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const isMobile = window.matchMedia('(max-width: 767.98px)').matches;
+    if (!isMobile || !isSidebarOpen) return;
+
+    previouslyFocusedRef.current = (document.activeElement as HTMLElement) || null;
+
+    // Move focus into the sidebar
+    const aside = asideRef.current;
+    if (aside) {
+      const firstFocusable = aside.querySelector<HTMLElement>(
+        'button:not([disabled]), [href], input:not([disabled]), [tabindex]:not([tabindex="-1"])'
+      );
+      firstFocusable?.focus();
+    }
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        setIsSidebarOpen?.(false);
+        return;
+      }
+      if (e.key === 'Tab' && aside) {
+        const focusables = Array.from(
+          aside.querySelectorAll<HTMLElement>(
+            'button:not([disabled]), [href], input:not([disabled]), [tabindex]:not([tabindex="-1"])'
+          )
+        ).filter((el) => !el.hasAttribute('disabled') && el.offsetParent !== null);
+        if (focusables.length === 0) return;
+        const first = focusables[0];
+        const last = focusables[focusables.length - 1];
+        const active = document.activeElement as HTMLElement | null;
+        if (e.shiftKey && active === first) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && active === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      // Restore focus only if it is inside the aside (i.e. drawer was actually trapping)
+      const prev = previouslyFocusedRef.current;
+      if (prev && typeof prev.focus === 'function') {
+        try { prev.focus(); } catch { /* noop */ }
+      }
+    };
+  }, [isSidebarOpen, setIsSidebarOpen]);
 
   const openMenu = (e: React.MouseEvent, id: string) => { e.stopPropagation(); setMenuOpenId(prev => prev === id ? null : id); };
   const startEdit = (e: React.MouseEvent, conv: Conversation) => { e.stopPropagation(); setMenuOpenId(null); setEditingId(conv.id); setEditValue(conv.title); };
@@ -108,84 +173,140 @@ export default function Sidebar({ conversations, activeId, onNewChat, onSelect, 
     if (e.key === 'Escape') cancelEdit();
   };
 
+  const closeIfMobile = () => {
+    if (typeof window === 'undefined') return;
+    if (window.matchMedia('(max-width: 767.98px)').matches) {
+      setIsSidebarOpen?.(false);
+    }
+  };
+
+  const handleSelectWithClose = (id: string) => {
+    onSelect(id);
+    closeIfMobile();
+  };
+
+  const handleNewChatWithClose = () => {
+    onNewChat();
+    closeIfMobile();
+  };
+
+  const handleViewChangeWithClose = (view: string) => {
+    onViewChange(view);
+    closeIfMobile();
+  };
+
   return (
-    <aside className="sidebar">
-      {menuOpenId && <div className="sidebar-backdrop" onClick={() => setMenuOpenId(null)} aria-hidden="true" />}
-      <div className="sidebar-header">
-        <div className="sidebar-logo">
-          <img src="/welgo-logo2.png" alt="Welgo" className="sidebar-logo-img" />
-          <span>Desk</span>
-        </div>
-        <div className="sidebar-tagline">{t('auth.agent_mode')}</div>
-      </div>
-
-      <button className="sidebar-new-btn" onClick={onNewChat}>
-        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><path d="M12 5v14M5 12h14"/></svg>
-        {t('sidebar.new_chat')}
-      </button>
-
-      <div className="sidebar-section-label">{t('sidebar.history')}</div>
-      <div className="sidebar-list">
-        {conversations.length === 0 ? (
-          <div className="sidebar-empty">{t('sidebar.empty')}</div>
-        ) : (
-          conversations.map(c => (
-            <div
-              key={c.id}
-              className={`sidebar-item${c.id === activeId ? ' active' : ''}`}
-              onClick={() => editingId !== c.id && onSelect(c.id)}
-              role="button" tabIndex={0}
-              onKeyDown={e => e.key === 'Enter' && editingId !== c.id && onSelect(c.id)}
-            >
-              <div className="sidebar-item-body">
-                {editingId === c.id ? (
-                  <input ref={editInputRef} className="sidebar-item-title-input" value={editValue}
-                    onChange={e => setEditValue(e.target.value)} onKeyDown={handleEditKeyDown}
-                    onBlur={commitEdit} onClick={e => e.stopPropagation()} maxLength={120}
-                    aria-label={t('sidebar.rename')} />
-                ) : (
-                  <div className="sidebar-item-title">{c.title}</div>
-                )}
-                {(c.client_info?.name || c.client_info?.phone) && (
-                  <div className="sidebar-client-tag">{[c.client_info.name, c.client_info.phone].filter(Boolean).join(' · ')}</div>
-                )}
-                <div className="sidebar-item-date">{formatDate(c.updated_at, t)}</div>
-              </div>
-              {editingId !== c.id && (
-                <div className="sidebar-item-actions">
-                  <button className="sidebar-item-menu-btn" onClick={e => openMenu(e, c.id)} aria-label="Actions" aria-expanded={menuOpenId === c.id} tabIndex={-1}><DotsIcon /></button>
-                  {menuOpenId === c.id && (
-                    <div className="sidebar-item-menu" role="menu">
-                      <button className="sidebar-item-menu-item" role="menuitem" onClick={e => startEdit(e, c)}><PencilIcon />{t('sidebar.rename')}</button>
-                      <button className="sidebar-item-menu-item sidebar-item-menu-item--danger" role="menuitem" onClick={e => { e.stopPropagation(); setMenuOpenId(null); onDelete(c.id); }}><TrashIcon />{t('sidebar.delete')}</button>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          ))
-        )}
-      </div>
-
-      {profile && (
+    <>
+      <div
+        className={`sidebar-mobile-backdrop${isSidebarOpen ? ' open' : ''}`}
+        onClick={() => setIsSidebarOpen?.(false)}
+        aria-hidden="true"
+      />
+      <aside
+        ref={asideRef}
+        className={`sidebar${isSidebarOpen ? ' sidebar--open' : ''}`}
+        role="navigation"
+        aria-label="Главное меню"
+      >
         <button
-          className={`sidebar-profile-btn${activeView === 'profile' ? ' active' : ''}`}
-          onClick={() => onViewChange(activeView === 'profile' ? 'desk' : 'profile')}
+          className="sidebar-close-btn"
+          onClick={() => setIsSidebarOpen?.(false)}
+          aria-label="Закрыть меню"
+          type="button"
         >
-          <div className="sidebar-profile-avatar">{getInitials(profile.full_name)}</div>
-          <div className="sidebar-profile-info">
-            <div className="sidebar-profile-name">{profile.full_name}</div>
-            <div className="sidebar-profile-credits">
-              {((profile.credits_limit ?? 300) - (profile.credits_used ?? 0)).toLocaleString('ru')}
-              <span className="sidebar-profile-credits-sep">/</span>
-              {(profile.credits_limit ?? 300).toLocaleString('ru')}
-            </div>
-          </div>
-          <div className="sidebar-profile-right">
-            <MiniRing credits={(profile.credits_limit ?? 300) - (profile.credits_used ?? 0)} max={profile.credits_limit ?? 300} />
-          </div>
+          <CloseIcon />
         </button>
-      )}
-    </aside>
+        {menuOpenId && <div className="sidebar-backdrop" onClick={() => setMenuOpenId(null)} aria-hidden="true" />}
+        <div className="sidebar-header">
+          <div className="sidebar-logo">
+            <img src="/welgo-logo2.png" alt="Welgo" className="sidebar-logo-img" />
+            <span>Desk</span>
+          </div>
+          <div className="sidebar-tagline">{t('auth.agent_mode')}</div>
+        </div>
+
+        <button className="sidebar-new-btn" onClick={handleNewChatWithClose}>
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><path d="M12 5v14M5 12h14"/></svg>
+          {t('sidebar.new_chat')}
+        </button>
+
+        {onOpenSearch && (
+          <button className="sidebar-search-btn" onClick={onOpenSearch} aria-label="Поиск по беседам">
+            <svg viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+              <circle cx="9" cy="9" r="6" />
+              <path d="m14 14 3.5 3.5" strokeLinecap="round" />
+            </svg>
+            <span className="sidebar-search-label">Поиск</span>
+            <span className="sidebar-search-kbd" aria-hidden="true">
+              <kbd>{typeof navigator !== 'undefined' && /Mac/i.test(navigator.platform) ? '⌘' : 'Ctrl'}</kbd>
+              <kbd>K</kbd>
+            </span>
+          </button>
+        )}
+
+        <div className="sidebar-section-label">{t('sidebar.history')}</div>
+        <div className="sidebar-list">
+          {conversations.length === 0 ? (
+            <div className="sidebar-empty">{t('sidebar.empty')}</div>
+          ) : (
+            conversations.map(c => (
+              <div
+                key={c.id}
+                className={`sidebar-item${c.id === activeId ? ' active' : ''}`}
+                onClick={() => editingId !== c.id && handleSelectWithClose(c.id)}
+                role="button" tabIndex={0}
+                onKeyDown={e => e.key === 'Enter' && editingId !== c.id && handleSelectWithClose(c.id)}
+              >
+                <div className="sidebar-item-body">
+                  {editingId === c.id ? (
+                    <input ref={editInputRef} className="sidebar-item-title-input" value={editValue}
+                      onChange={e => setEditValue(e.target.value)} onKeyDown={handleEditKeyDown}
+                      onBlur={commitEdit} onClick={e => e.stopPropagation()} maxLength={120}
+                      aria-label={t('sidebar.rename')} />
+                  ) : (
+                    <div className="sidebar-item-title">{c.title}</div>
+                  )}
+                  {(c.client_info?.name || c.client_info?.phone) && (
+                    <div className="sidebar-client-tag">{[c.client_info.name, c.client_info.phone].filter(Boolean).join(' · ')}</div>
+                  )}
+                  <div className="sidebar-item-date">{formatDate(c.updated_at, t)}</div>
+                </div>
+                {editingId !== c.id && (
+                  <div className="sidebar-item-actions">
+                    <button className="sidebar-item-menu-btn" onClick={e => openMenu(e, c.id)} aria-label="Actions" aria-expanded={menuOpenId === c.id} tabIndex={-1}><DotsIcon /></button>
+                    {menuOpenId === c.id && (
+                      <div className="sidebar-item-menu" role="menu">
+                        <button className="sidebar-item-menu-item" role="menuitem" onClick={e => startEdit(e, c)}><PencilIcon />{t('sidebar.rename')}</button>
+                        <button className="sidebar-item-menu-item sidebar-item-menu-item--danger" role="menuitem" onClick={e => { e.stopPropagation(); setMenuOpenId(null); onDelete(c.id); }}><TrashIcon />{t('sidebar.delete')}</button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            ))
+          )}
+        </div>
+
+        {profile && (
+          <button
+            className={`sidebar-profile-btn${activeView === 'profile' ? ' active' : ''}`}
+            onClick={() => handleViewChangeWithClose(activeView === 'profile' ? 'desk' : 'profile')}
+          >
+            <div className="sidebar-profile-avatar">{getInitials(profile.full_name)}</div>
+            <div className="sidebar-profile-info">
+              <div className="sidebar-profile-name">{profile.full_name}</div>
+              <div className="sidebar-profile-credits">
+                {((profile.credits_limit ?? 300) - (profile.credits_used ?? 0)).toLocaleString('ru')}
+                <span className="sidebar-profile-credits-sep">/</span>
+                {(profile.credits_limit ?? 300).toLocaleString('ru')}
+              </div>
+            </div>
+            <div className="sidebar-profile-right">
+              <MiniRing credits={(profile.credits_limit ?? 300) - (profile.credits_used ?? 0)} max={profile.credits_limit ?? 300} />
+            </div>
+          </button>
+        )}
+      </aside>
+    </>
   );
 }

@@ -8,6 +8,7 @@ import { apiFetch } from "@/lib/api";
 import LoginPage from "@/components/auth/LoginPage";
 import OnboardingPage from "@/components/auth/OnboardingPage";
 import Sidebar from "@/components/Sidebar";
+import CommandPalette from "@/components/CommandPalette";
 import DeskView from "@/components/desk/DeskView";
 import ProfilePage from "@/components/ProfilePage";
 import SuperAdminPage from "@/components/SuperAdminPage";
@@ -31,7 +32,7 @@ function PendingApprovalPage({ profile, signOut }: { profile: any; signOut: () =
       }}
     >
       <div style={{ fontSize: "40px" }}>⏳</div>
-      <h2 style={{ margin: 0, fontWeight: 800, fontSize: "20px" }}>
+      <h2 style={{ margin: 0, fontWeight: 700, fontSize: "20px" }}>
         {t("pending.title")}
       </h2>
       <p
@@ -113,6 +114,25 @@ export default function AppShell() {
     return crypto.randomUUID();
   });
 
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isPaletteOpen, setIsPaletteOpen] = useState(false);
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      const isMeta = e.metaKey || e.ctrlKey;
+      if (isMeta && (e.key === "k" || e.key === "K" || e.key === "л" || e.key === "Л")) {
+        const target = e.target as HTMLElement | null;
+        const tag = target?.tagName;
+        const isTypingInModal = target?.closest?.('[role="dialog"]');
+        if (isTypingInModal && !isPaletteOpen) return;
+        e.preventDefault();
+        setIsPaletteOpen((v) => !v);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [isPaletteOpen]);
+
   useEffect(() => {
     sessionStorage.setItem("currentSessionId", currentSessionId);
   }, [currentSessionId]);
@@ -129,9 +149,30 @@ export default function AppShell() {
   }, [session, profile]);
 
   const switchSession = useCallback((id: string) => {
-    setCurrentSessionId(id);
-    handleViewChange("desk");
-  }, []);
+    const isSearchActive =
+      typeof window !== "undefined" &&
+      typeof (window as any).__welgoDeskIsSearchActive === "function" &&
+      (window as any).__welgoDeskIsSearchActive();
+
+    const commit = () => {
+      setCurrentSessionId(id);
+      handleViewChange("desk");
+    };
+
+    if (!isSearchActive) {
+      commit();
+      return;
+    }
+
+    const onAck = (e: Event) => {
+      const detail = (e as CustomEvent).detail as { sessionId?: string; confirmed?: boolean } | undefined;
+      if (!detail || detail.sessionId !== id) return;
+      window.removeEventListener("welgo:switch-session-ack", onAck as EventListener);
+      if (detail.confirmed) commit();
+    };
+    window.addEventListener("welgo:switch-session-ack", onAck as EventListener);
+    window.dispatchEvent(new CustomEvent("welgo:switch-session-request", { detail: { sessionId: id } }));
+  }, [handleViewChange]);
 
   const handleNewChat = useCallback(() => {
     setCurrentSessionId(crypto.randomUUID());
@@ -189,6 +230,7 @@ export default function AppShell() {
 
   return (
     <div className="app-shell">
+      <a className="skip-link" href="#main-content">Перейти к содержимому</a>
       <Sidebar
         conversations={conversations}
         activeId={currentSessionId}
@@ -199,14 +241,37 @@ export default function AppShell() {
         profile={profile}
         activeView={activeView}
         onViewChange={handleViewChange}
+        isSidebarOpen={isSidebarOpen}
+        setIsSidebarOpen={setIsSidebarOpen}
+        onOpenSearch={() => setIsPaletteOpen(true)}
       />
-      <div className="main-content">
+      <main id="main-content" className="main-content" tabIndex={-1}>
+        <button
+          type="button"
+          className="app-hamburger"
+          aria-label="Открыть меню"
+          aria-expanded={isSidebarOpen}
+          aria-controls="main-content"
+          onClick={() => setIsSidebarOpen(true)}
+        >
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+            <path d="M4 6h16M4 12h16M4 18h16" />
+          </svg>
+        </button>
         {activeView === "superadmin" && <SuperAdminPage />}
         {activeView === "profile" && <ProfilePage />}
         <div className={`session-slot${activeView === "desk" ? " session-slot--active" : ""}`}>
           <DeskView key={currentSessionId} sessionId={currentSessionId} onTurnComplete={refreshConversations} />
         </div>
-      </div>
+      </main>
+      <CommandPalette
+        isOpen={isPaletteOpen}
+        onClose={() => setIsPaletteOpen(false)}
+        conversations={conversations}
+        activeId={currentSessionId}
+        onSelect={handleSelect}
+        onNewChat={handleNewChat}
+      />
     </div>
   );
 }

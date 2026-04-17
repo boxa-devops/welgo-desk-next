@@ -173,6 +173,47 @@
   padding: 40px 0;
 }
 
+.dahm-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-7) var(--space-4);
+}
+.dahm-empty-title {
+  font-size: var(--text-md);
+  font-weight: 600;
+  color: var(--text);
+}
+.dahm-empty-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-2);
+}
+.dahm-empty-btn {
+  background: var(--card);
+  border: 1.5px solid var(--border);
+  color: var(--text);
+  padding: 8px 14px;
+  font-size: var(--text-sm);
+  font-weight: 500;
+  border-radius: var(--radius-sm);
+  font-family: inherit;
+  cursor: pointer;
+  transition: border-color var(--transition), color var(--transition), background var(--transition);
+}
+.dahm-empty-btn:hover:not(:disabled) {
+  border-color: var(--brand);
+  color: var(--brand);
+  background: var(--brand-light);
+}
+.dahm-empty-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.dahm-empty-btn:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+
 /* ── Hotel card ── */
 .dahm-card {
   background: var(--card);

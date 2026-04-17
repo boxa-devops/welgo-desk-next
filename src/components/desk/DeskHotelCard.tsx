@@ -57,12 +57,22 @@ function OperatorBadge({ id, name, tourId }) {
         />
       )}
       <span className="dhcard-operator">{name}</span>
-      <button className="dhcard-op-link-btn" onClick={handleOpen} disabled={loading} title="Перейти на сайт оператора">
+      <button
+        className="dhcard-op-link-btn"
+        onClick={handleOpen}
+        disabled={loading}
+        title="Перейти на сайт оператора"
+        aria-label={`Перейти на сайт оператора ${name}`}
+      >
         {loading ? "…" : (
-          <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" width="12" height="12">
-            <path d="M5.5 2H2a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1V8.5" />
-            <path d="M8 1h5m0 0v5m0-5L6 8" />
-          </svg>
+          <>
+            <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" width="12" height="12" aria-hidden="true">
+              <path d="M5.5 2H2a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1V8.5" />
+              <path d="M8 1h5m0 0v5m0-5L6 8" />
+            </svg>
+            <span className="dhcard-op-link-glyph" aria-hidden="true">↗</span>
+            <span className="sr-only">(открывается в новой вкладке)</span>
+          </>
         )}
       </button>
     </div>

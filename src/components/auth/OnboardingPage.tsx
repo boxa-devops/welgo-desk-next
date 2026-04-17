@@ -140,6 +140,9 @@ export default function OnboardingPage() {
             <div className="onboard-field">
               <label>{t("onboard.invite_code")}</label>
               <input type="text" placeholder="XXXX-XXXX" value={inviteCode} onChange={(e) => setInviteCode(e.target.value)} required style={{ letterSpacing: "2px", fontFamily: "monospace", fontSize: "16px" }} />
+              <span style={{ fontSize: "var(--text-sm)", color: "var(--text-2)", marginTop: "6px" }}>
+                Код выдаёт владелец агентства на странице «Профиль».
+              </span>
             </div>
             {error && <p className="onboard-error">{error}</p>}
             <div className="onboard-actions">

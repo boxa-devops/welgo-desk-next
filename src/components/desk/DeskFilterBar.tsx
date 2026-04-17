@@ -1,14 +1,16 @@
 // src/components/desk/DeskFilterBar.tsx
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { fmtUzs } from "@/utils";
 import "./DeskFilterBar.css";
 
 const DEBOUNCE_MS = 350;
+const PRICE_STEP = 50;
 
 export default function DeskFilterBar({ filters, value, onChange, loading }) {
   const timerRef = useRef(null);
+  const numericTimerRef = useRef(null);
   const [operatorSearch, setOperatorSearch] = useState('');
 
   if (!filters) return null;
@@ -30,6 +32,41 @@ export default function DeskFilterBar({ filters, value, onChange, loading }) {
 
   const selectedOps = value.operators ?? [];
 
+  // Local numeric input state, debounced-synced with committed value.
+  const [minInput, setMinInput] = useState(String(priceMin));
+  const [maxInput, setMaxInput] = useState(String(priceMax));
+
+  useEffect(() => { setMinInput(String(priceMin)); }, [priceMin]);
+  useEffect(() => { setMaxInput(String(priceMax)); }, [priceMax]);
+
+  const commitMinInput = (raw) => {
+    const n = Number(raw);
+    if (!Number.isFinite(n)) return;
+    const clamped = Math.min(Math.max(n, min_price_uzs), priceMax - PRICE_STEP);
+    schedule({ priceMin: clamped });
+  };
+
+  const commitMaxInput = (raw) => {
+    const n = Number(raw);
+    if (!Number.isFinite(n)) return;
+    const clamped = Math.max(Math.min(n, max_price_uzs), priceMin + PRICE_STEP);
+    schedule({ priceMax: clamped });
+  };
+
+  const onMinInputChange = (e) => {
+    const raw = e.target.value;
+    setMinInput(raw);
+    clearTimeout(numericTimerRef.current);
+    numericTimerRef.current = setTimeout(() => commitMinInput(raw), DEBOUNCE_MS);
+  };
+
+  const onMaxInputChange = (e) => {
+    const raw = e.target.value;
+    setMaxInput(raw);
+    clearTimeout(numericTimerRef.current);
+    numericTimerRef.current = setTimeout(() => commitMaxInput(raw), DEBOUNCE_MS);
+  };
+
   const toggleOperator = (op) => {
     const next = selectedOps.includes(op)
       ? selectedOps.filter(o => o !== op)
@@ -47,6 +84,28 @@ export default function DeskFilterBar({ filters, value, onChange, loading }) {
     ? operators.filter(op => op.toLowerCase().includes(opQuery))
     : operators;
 
+  // Count active filters
+  const priceChanged = priceMin !== min_price_uzs || priceMax !== max_price_uzs;
+  const starsActive = value.starsMin != null;
+  const mealActive = value.mealPlan != null;
+  const opsActive = selectedOps.length > 0;
+  const activeCount =
+    (priceChanged ? 1 : 0) +
+    (starsActive ? 1 : 0) +
+    (mealActive ? 1 : 0) +
+    (opsActive ? 1 : 0);
+
+  const resetAll = () => {
+    schedule({
+      priceMin: min_price_uzs,
+      priceMax: max_price_uzs,
+      starsMin: null,
+      mealPlan: null,
+      operators: [],
+    });
+    setOperatorSearch('');
+  };
+
   return (
     <div className="dfb-root">
       <div className="dfb-header">
@@ -54,6 +113,17 @@ export default function DeskFilterBar({ filters, value, onChange, loading }) {
           {loading && <span className="dfb-spinner" aria-hidden="true" />}
           Фильтры
         </span>
+        {activeCount > 0 && (
+          <button
+            type="button"
+            className="dfb-active-pill"
+            onClick={resetAll}
+            aria-label={`Сбросить фильтры, активно: ${activeCount}`}
+            title="Сбросить все фильтры"
+          >
+            {activeCount} активных
+          </button>
+        )}
       </div>
 
       <div className="dfb-body">
@@ -71,27 +141,67 @@ export default function DeskFilterBar({ filters, value, onChange, loading }) {
               className="dfb-range dfb-range--min"
               min={min_price_uzs}
               max={max_price_uzs}
-              step={Math.round(range / 100)}
+              step={PRICE_STEP}
               value={priceMin}
-              onChange={e => {
-                const v = Math.min(Number(e.target.value), priceMax - 1);
-                schedule({ priceMin: v });
-              }}
               aria-label="Минимальная цена"
+              aria-valuemin={min_price_uzs}
+              aria-valuemax={max_price_uzs}
+              aria-valuenow={priceMin}
+              onChange={e => {
+                const v = Math.min(Number(e.target.value), priceMax - PRICE_STEP);
+                schedule({ priceMin: Math.max(v, min_price_uzs) });
+              }}
             />
             <input
               type="range"
               className="dfb-range dfb-range--max"
               min={min_price_uzs}
               max={max_price_uzs}
-              step={Math.round(range / 100)}
+              step={PRICE_STEP}
               value={priceMax}
-              onChange={e => {
-                const v = Math.max(Number(e.target.value), priceMin + 1);
-                schedule({ priceMax: v });
-              }}
               aria-label="Максимальная цена"
+              aria-valuemin={min_price_uzs}
+              aria-valuemax={max_price_uzs}
+              aria-valuenow={priceMax}
+              onChange={e => {
+                const v = Math.max(Number(e.target.value), priceMin + PRICE_STEP);
+                schedule({ priceMax: Math.min(v, max_price_uzs) });
+              }}
             />
+          </div>
+
+          <div className="dfb-price-inputs">
+            <label className="dfb-price-field">
+              <span className="dfb-sr-only">Минимальная цена, сум</span>
+              <input
+                type="number"
+                className="dfb-price-input"
+                min={min_price_uzs}
+                max={max_price_uzs}
+                step={PRICE_STEP}
+                value={minInput}
+                onChange={onMinInputChange}
+                onBlur={() => commitMinInput(minInput)}
+                placeholder="от"
+                inputMode="numeric"
+              />
+            </label>
+            <span className="dfb-price-sep" aria-hidden="true">—</span>
+            <label className="dfb-price-field">
+              <span className="dfb-sr-only">Максимальная цена, сум</span>
+              <input
+                type="number"
+                className="dfb-price-input"
+                min={min_price_uzs}
+                max={max_price_uzs}
+                step={PRICE_STEP}
+                value={maxInput}
+                onChange={onMaxInputChange}
+                onBlur={() => commitMaxInput(maxInput)}
+                placeholder="до"
+                inputMode="numeric"
+              />
+            </label>
           </div>
         </div>
 
@@ -154,15 +264,14 @@ export default function DeskFilterBar({ filters, value, onChange, loading }) {
               )}
             </div>
 
-            {operators.length > 5 && (
-              <input
-                className="dfb-ops-search"
-                type="search"
-                placeholder="Найти оператора…"
-                value={operatorSearch}
-                onChange={e => setOperatorSearch(e.target.value)}
-              />
-            )}
+            <input
+              className="dfb-ops-search"
+              type="search"
+              placeholder={operators.length > 5 ? "Найти оператора…" : "Поиск оператора"}
+              value={operatorSearch}
+              onChange={e => setOperatorSearch(e.target.value)}
+              aria-label="Поиск оператора"
+            />
 
             <div className="dfb-ops-list" role="group" aria-label="Туроператоры">
               {visibleOperators.map(op => {
@@ -184,7 +293,10 @@ export default function DeskFilterBar({ filters, value, onChange, loading }) {
                 );
               })}
               {opQuery && visibleOperators.length === 0 && (
-                <span className="dfb-ops-empty">Не найдено</span>
+                <div className="dfb-ops-empty-wrap">
+                  <span className="dfb-ops-empty">Не нашли оператора «{operatorSearch}»</span>
+                  <span className="dfb-ops-empty-hint">Проверьте раскладку клавиатуры</span>
+                </div>
               )}
             </div>
           </div>

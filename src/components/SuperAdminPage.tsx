@@ -107,10 +107,20 @@ function EnableToggle({ orgId, enabled, onUpdated }: EnableToggleProps) {
   );
 }
 
+type SortKey = "created_desc" | "name_asc" | "plan_group";
+
+const PLAN_ORDER: Record<string, number> = {
+  solo: 0,
+  team: 1,
+  enterprise: 2,
+};
+
 export default function SuperAdminPage() {
   const [orgs, setOrgs] = useState<Org[]>([]);
   const [loading, setLoading] = useState(true);
   const [forbidden, setForbidden] = useState(false);
+  const [query, setQuery] = useState("");
+  const [sortKey, setSortKey] = useState<SortKey>("created_desc");
 
   useEffect(() => {
     apiFetch("/api/superadmin/orgs")
@@ -147,6 +157,27 @@ export default function SuperAdminPage() {
   const pending = orgs.filter((o) => !o.is_enabled);
   const active = orgs.filter((o) => o.is_enabled);
 
+  const normalizedQuery = query.trim().toLowerCase();
+  const filtered = normalizedQuery
+    ? orgs.filter((o) => o.org_name.toLowerCase().includes(normalizedQuery))
+    : orgs;
+
+  const sorted = [...filtered].sort((a, b) => {
+    if (sortKey === "name_asc") {
+      return a.org_name.localeCompare(b.org_name, "ru");
+    }
+    if (sortKey === "plan_group") {
+      const pa = PLAN_ORDER[a.plan] ?? 99;
+      const pb = PLAN_ORDER[b.plan] ?? 99;
+      if (pa !== pb) return pa - pb;
+      return a.org_name.localeCompare(b.org_name, "ru");
+    }
+    // created_desc
+    return (
+      new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    );
+  });
+
   return (
     <div className="sa-root">
       <div className="sa-container">
@@ -158,13 +189,36 @@ export default function SuperAdminPage() {
           </p>
         </div>
 
+        <div className="sa-controls">
+          <input
+            type="search"
+            className="sa-search"
+            placeholder="Поиск по названию"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            aria-label="Поиск по названию"
+          />
+          <select
+            className="sa-sort"
+            value={sortKey}
+            onChange={(e) => setSortKey(e.target.value as SortKey)}
+            aria-label="Сортировка"
+          >
+            <option value="created_desc">По дате создания</option>
+            <option value="name_asc">По названию</option>
+            <option value="plan_group">По плану</option>
+          </select>
+        </div>
+
         {loading ? (
           <div className="sa-loading">Загрузка…</div>
         ) : orgs.length === 0 ? (
           <div className="sa-empty">Нет зарегистрированных агентств</div>
+        ) : sorted.length === 0 ? (
+          <div className="sa-empty">Ничего не найдено</div>
         ) : (
           <div className="sa-card sa-list">
-            {orgs.map((org) => (
+            {sorted.map((org) => (
               <div
                 key={org.org_id}
                 className={`sa-entry${!org.is_enabled ? " sa-entry--pending" : ""}`}

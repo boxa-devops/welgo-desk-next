@@ -1,7 +1,8 @@
 // src/components/desk/DeskAnalysisPanel.tsx
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import "./DeskAnalysisPanel.css";
 
 const SLOT_CONFIG = {
@@ -160,7 +161,7 @@ function TableBlock({ rows }) {
     <div className="dap-table-wrap">
       <table className="dap-table">
         <thead>
-          <tr>{headers.map((h, i) => <th key={i} className={narrowCols.has(i) ? 'dap-th-narrow' : ''}>{h}</th>)}</tr>
+          <tr>{headers.map((h, i) => <th key={i} scope="col" className={narrowCols.has(i) ? 'dap-th-narrow' : ''}>{h}</th>)}</tr>
         </thead>
         <tbody>
           {body.map((cells, ri) => (
@@ -257,6 +258,22 @@ const AnalysisIcon = () => (
   </svg>
 );
 
+const CopyIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+    strokeLinecap="round" strokeLinejoin="round" width="12" height="12">
+    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+  </svg>
+);
+
+const ArrowUpIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+    strokeLinecap="round" strokeLinejoin="round" width="12" height="12">
+    <line x1="12" y1="19" x2="12" y2="5"/>
+    <polyline points="5 12 12 5 19 12"/>
+  </svg>
+);
+
 export function splitAnalysis(raw) {
   if (!raw) return { verdict: '', details: '' };
   const idx = raw.indexOf('\n---\n');
@@ -268,9 +285,147 @@ export function splitAnalysis(raw) {
   return { verdict: raw.slice(0, idx).trim(), details: raw.slice(idx + 5).trim() };
 }
 
+// Strip markdown bold markers for plain-text export
+function stripMd(text) {
+  return String(text ?? '').replace(/\*\*([^*]+)\*\*/g, '$1').trim();
+}
+
+// Serialize parsed blocks to plain text suitable for WhatsApp/Telegram
+function blocksToPlainText(blocks, totalFound) {
+  const lines = [];
+  lines.push('📋 Подробный разбор');
+  if (totalFound > 0) lines.push(`Найдено вариантов: ${totalFound}`);
+  lines.push('');
+
+  // Recommendation
+  const rec = blocks.find(b => b.type === 'rec');
+  if (rec) {
+    lines.push('👑 Рекомендация:');
+    lines.push(stripMd(rec.text));
+    lines.push('');
+  }
+
+  // Slots
+  const slots = blocks.filter(b => b.type === 'slot');
+  if (slots.length) {
+    lines.push('— Варианты —');
+    for (const s of slots) {
+      lines.push(`${s.cfg.emoji} ${s.cfg.label}: ${stripMd(s.hotel)}`);
+      if (s.main) lines.push(stripMd(s.main));
+      if (s.flag) lines.push(`🚩 Красный флаг: ${stripMd(s.flag)}`);
+      lines.push('');
+    }
+  }
+
+  // Red flags across slots (already surfaced), plus standalone warnings
+  const warnings = blocks.filter(b => b.type === 'warning');
+  if (warnings.length) {
+    lines.push('⚠️ Важно:');
+    for (const w of warnings) lines.push(stripMd(w.text));
+    lines.push('');
+  }
+
+  // Comparison
+  const comparison = blocks.find(b => b.type === 'comparison');
+  if (comparison) {
+    lines.push('🔁 Сравнение:');
+    lines.push(stripMd(comparison.text));
+    lines.push('');
+  }
+
+  // "Что можно сделать"
+  const actionsIdx = blocks.findIndex(b => b.type === 'actions-heading');
+  if (actionsIdx !== -1) {
+    lines.push('✅ Что можно сделать:');
+    for (let i = actionsIdx + 1; i < blocks.length; i++) {
+      const b = blocks[i];
+      if (b.type === 'actions-list') {
+        for (const item of b.items) lines.push(`• ${stripMd(item)}`);
+      } else if (b.type !== 'actions-heading') {
+        // stop at next non-actions block (keep export tight)
+        break;
+      }
+    }
+    lines.push('');
+  }
+
+  return lines.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+}
+
 export default function DeskAnalysisPanel({ text, fromCache, totalFound }) {
   const [open, setOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [showPill, setShowPill] = useState(false);
+  const [isStuck, setIsStuck] = useState(false);
+  const [pillPos, setPillPos] = useState(null); // { right, bottom }
+
+  const rootRef = useRef(null);
+  const scrollRootRef = useRef(null);
+  const copyTimerRef = useRef(null);
+
   const { details } = splitAnalysis(text);
+
+  // Detect visibility of the natural panel + whether header is "stuck"
+  useEffect(() => {
+    if (!details) return;
+    const el = rootRef.current;
+    if (!el) return;
+
+    // Find the closest scrollable ancestor (.desk-scroll)
+    let scrollRoot = el.parentElement;
+    while (scrollRoot && !scrollRoot.classList.contains('desk-scroll')) {
+      scrollRoot = scrollRoot.parentElement;
+    }
+    scrollRootRef.current = scrollRoot ?? null;
+
+    const computeFromRects = () => {
+      const rootEl = scrollRoot ?? null;
+      const panelRect = el.getBoundingClientRect();
+      const rootRect = rootEl ? rootEl.getBoundingClientRect() : { top: 0, left: 0, right: window.innerWidth, bottom: window.innerHeight };
+      const visible = panelRect.bottom > rootRect.top && panelRect.top < rootRect.bottom;
+      const scrolledPast = panelRect.bottom < rootRect.top - 400;
+      // Pill: if collapsed OR scrolled well past (>400px below)
+      setShowPill(!visible && (!open || scrolledPast));
+      // Stuck: open AND top of panel is at/above scroll root top
+      setIsStuck(open && panelRect.top <= rootRect.top + 1 && panelRect.bottom > rootRect.top);
+      // Pill position: fixed in viewport, bottom-right of scroll container
+      setPillPos({
+        right: Math.max(8, window.innerWidth - rootRect.right + 16),
+        bottom: Math.max(8, window.innerHeight - rootRect.bottom + 16),
+      });
+    };
+
+    if (typeof IntersectionObserver === 'undefined') {
+      computeFromRects();
+      return;
+    }
+
+    const io = new IntersectionObserver(
+      () => { computeFromRects(); },
+      { root: scrollRoot ?? null, threshold: [0, 0.01, 0.5, 1] }
+    );
+    io.observe(el);
+
+    const onScroll = () => computeFromRects();
+    scrollRoot?.addEventListener('scroll', onScroll, { passive: true });
+    window.addEventListener('resize', onScroll);
+    computeFromRects();
+
+    return () => {
+      io.disconnect();
+      scrollRoot?.removeEventListener('scroll', onScroll);
+      window.removeEventListener('resize', onScroll);
+    };
+  }, [details, open]);
+
+  useEffect(() => {
+    return () => {
+      if (copyTimerRef.current) {
+        clearTimeout(copyTimerRef.current);
+      }
+    };
+  }, []);
+
   if (!details) return null;
 
   const blocks = parseToBlocks(details);
@@ -279,9 +434,59 @@ export default function DeskAnalysisPanel({ text, fromCache, totalFound }) {
     ? (rec.text.replace(/\*\*/g, '').trim().slice(0, 85) + (rec.text.length > 85 ? '...' : ''))
     : null;
 
+  const scrollToNatural = () => {
+    const el = rootRef.current;
+    if (el && typeof el.scrollIntoView === 'function') {
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  };
+
+  const handleHeaderClick = () => {
+    // When the header is stuck (scrolled past natural position while open),
+    // clicking scrolls back to the natural position instead of collapsing.
+    if (open && isStuck) {
+      scrollToNatural();
+      return;
+    }
+    setOpen(v => !v);
+  };
+
+  const handleCopy = async (e) => {
+    e.stopPropagation();
+    e.preventDefault();
+    try {
+      const plain = blocksToPlainText(blocks, totalFound);
+      if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+        await navigator.clipboard.writeText(plain);
+      }
+      setCopied(true);
+      if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
+      copyTimerRef.current = setTimeout(() => setCopied(false), 1500);
+    } catch {
+      // Silent failure — clipboard might be blocked
+    }
+  };
+
+  const handleCopyKey = (e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      handleCopy(e);
+    }
+  };
+
+  const handlePillClick = () => {
+    setOpen(true);
+    scrollToNatural();
+  };
+
   return (
-    <div className={`dap-root${open ? ' dap-root--open' : ''}`}>
-      <button className="dap-header" onClick={() => setOpen(v => !v)} aria-expanded={open}>
+    <div ref={rootRef} className={`dap-root${open ? ' dap-root--open' : ''}${isStuck ? ' dap-root--stuck' : ''}`}>
+      <button
+        className="dap-header"
+        onClick={handleHeaderClick}
+        aria-expanded={open}
+        aria-label={open && isStuck ? 'Вернуться к разбору' : 'Подробный разбор'}
+      >
         <span className="dap-header-left">
           <span className="dap-header-icon"><AnalysisIcon /></span>
           <span className="dap-header-label">Подробный разбор</span>
@@ -290,10 +495,36 @@ export default function DeskAnalysisPanel({ text, fromCache, totalFound }) {
         </span>
         <span className="dap-header-right">
           {!open && recPreview && <span className="dap-header-preview">{recPreview}</span>}
+          <span
+            className="dap-copy-btn"
+            role="button"
+            tabIndex={0}
+            onClick={handleCopy}
+            onKeyDown={handleCopyKey}
+            aria-label="Скопировать анализ"
+          >
+            <CopyIcon />
+            <span className="dap-copy-label">{copied ? 'Скопировано ✓' : 'Скопировать'}</span>
+          </span>
           <ChevronIcon open={open} />
         </span>
       </button>
+
       {open && <div className="dap-body">{renderBlocks(blocks)}</div>}
+
+      {showPill && pillPos && typeof document !== 'undefined' && createPortal(
+        <button
+          type="button"
+          className="dap-floating-pill"
+          onClick={handlePillClick}
+          aria-label="Показать анализ"
+          style={{ right: pillPos.right, bottom: pillPos.bottom }}
+        >
+          <ArrowUpIcon />
+          <span>Показать анализ</span>
+        </button>,
+        document.body
+      )}
     </div>
   );
 }

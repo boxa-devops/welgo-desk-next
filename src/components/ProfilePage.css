@@ -20,7 +20,7 @@
 
 .pp-page-title {
   font-size: 22px;
-  font-weight: 800;
+  font-weight: 700;
   color: var(--text);
   letter-spacing: -0.4px;
   margin: 0 0 4px;
@@ -65,7 +65,7 @@
   background: var(--brand);
   color: var(--brand-text);
   font-size: 18px;
-  font-weight: 800;
+  font-weight: 700;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -128,14 +128,14 @@
   padding: 3px 10px;
   border-radius: var(--radius-pill);
   font-size: 11px;
-  font-weight: 800;
+  font-weight: 700;
   color: #fff;
   letter-spacing: 0.06em;
 }
 
 .pp-plan-price {
   font-size: 20px;
-  font-weight: 800;
+  font-weight: 700;
   color: var(--text);
   letter-spacing: -0.4px;
 }
@@ -248,7 +248,7 @@
 
 .pp-ring-value {
   font-size: 22px;
-  font-weight: 800;
+  font-weight: 700;
   color: var(--text);
   letter-spacing: -0.8px;
   line-height: 1;
@@ -487,7 +487,7 @@
 
 .pp-team-credits-val {
   font-size: 18px;
-  font-weight: 800;
+  font-weight: 700;
   color: var(--brand-dark);
   letter-spacing: -0.4px;
   line-height: 1;
@@ -574,4 +574,31 @@
 .pp-lang-btn:disabled {
   opacity: 0.6;
   cursor: wait;
+}
+
+/* ── Saved pip (auto-save feedback) ── */
+.pp-saved-pip {
+  display: inline-flex;
+  align-items: center;
+  align-self: center;
+  margin-left: 4px;
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--green);
+  background: var(--green-light);
+  animation: pp-saved-fade 1500ms cubic-bezier(.4, 0, .2, 1) both;
+  white-space: nowrap;
+}
+
+@keyframes pp-saved-fade {
+  0%   { opacity: 0; transform: translateY(-2px); }
+  12%  { opacity: 1; transform: translateY(0); }
+  88%  { opacity: 1; transform: translateY(0); }
+  100% { opacity: 0; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pp-saved-pip { animation-duration: 0.01ms; }
 }

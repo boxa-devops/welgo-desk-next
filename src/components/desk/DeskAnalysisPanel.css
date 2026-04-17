@@ -1,9 +1,27 @@
 /* ── Root ── */
 .dap-root {
+  position: relative;
   background: var(--card);
   border: 1.5px solid var(--border);
   border-radius: var(--radius-lg);
-  overflow: hidden;
+  /* overflow left visible so sticky children can pin to the scroll container */
+}
+
+.dap-root > .dap-header { border-top-left-radius: var(--radius-lg); border-top-right-radius: var(--radius-lg); }
+.dap-root:not(.dap-root--open) > .dap-header {
+  border-bottom-left-radius: var(--radius-lg);
+  border-bottom-right-radius: var(--radius-lg);
+}
+.dap-root--open > .dap-body {
+  border-bottom-left-radius: var(--radius-lg);
+  border-bottom-right-radius: var(--radius-lg);
+}
+
+/* ── Sticky pinning — only when panel is open ── */
+.dap-root--open > .dap-header {
+  position: sticky;
+  top: 0;
+  z-index: 5;
 }
 
 /* ── Header (collapsible toggle) ── */
@@ -142,7 +160,7 @@
 
 .dap-slot-label {
   font-size: 10px;
-  font-weight: 800;
+  font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.07em;
 }
@@ -227,7 +245,7 @@
 
 .dap-rec-label {
   font-size: 10px;
-  font-weight: 800;
+  font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.07em;
   color: #166534;
@@ -350,8 +368,83 @@
 .dap-slot-chip--luxury { background: #FEF3C7; color: #B45309; }
 .dap-slot-chip--beach  { background: #E0F2FE; color: #0369A1; }
 
+/* ── Copy button in header ── */
+.dap-copy-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text-2);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  white-space: nowrap;
+  user-select: none;
+}
+
+.dap-copy-btn:hover {
+  background: var(--card);
+  color: var(--brand);
+  border-color: var(--brand);
+}
+
+.dap-copy-btn:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+
+.dap-copy-btn svg { flex-shrink: 0; }
+
+.dap-copy-label { line-height: 1; }
+
+/* ── Floating pill "Показать анализ" ── */
+.dap-floating-pill {
+  position: fixed;
+  z-index: 50;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 14px;
+  border-radius: var(--radius-pill);
+  background: var(--brand);
+  color: #fff;
+  border: none;
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: var(--shadow);
+  transition: transform 0.15s, box-shadow 0.15s, background 0.15s;
+  animation: dap-pill-in 0.2s ease-out;
+}
+
+.dap-floating-pill:hover {
+  background: var(--brand-dark, var(--brand));
+  transform: translateY(-1px);
+}
+
+.dap-floating-pill:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+
+.dap-floating-pill svg { flex-shrink: 0; }
+
+@keyframes dap-pill-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
 /* ── Responsive ── */
 @media (max-width: 500px) {
   .dap-slot-grid { grid-template-columns: 1fr; }
   .dap-header-preview { max-width: 140px; }
+  .dap-copy-label { display: none; }
+  .dap-copy-btn { padding: 4px 6px; }
 }
